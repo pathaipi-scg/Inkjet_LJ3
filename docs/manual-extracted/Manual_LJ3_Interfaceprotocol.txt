@@ -1,0 +1,1165 @@
+
+--- PDF PAGE 1 ---
+ 
+ 
+Seite 1 von 27  05.05.2014 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+Documentation 
+ 
+Leibinger-Jet3 Interface protocol 
+ 
+ 
+Version 1.7.7 
+ 
+May.05.2014 
+
+--- PDF PAGE 2 ---
+ 
+ 
+Seite 2 von 27  05.05.2014 
+ 
+Summary 
+ 
+General ....................................................................................................................................... 4 
+Script Processing ........................................................................................................................ 5 
+Action instructions ..................................................................................................................... 6 
+Overview ................................................................................................................. 6 
+Details to commands............................................................................................... 6 
+!RC ..................................................................................................................................... 6 
+!LF ...................................................................................................................................... 6 
+!US ..................................................................................................................................... 7 
+!EQ ..................................................................................................................................... 7 
+Inquiries ...................................................................................................................................... 8 
+Overview of inquiries (Host  Machine) ................................................................. 8 
+Parameter Transfer ..................................................................................................................... 9 
+=AC All Counter (Machine  Host) ........................................................................ 9 
+=CC Current Counter (Machine  Host) ............................................................. 9 
+=CM Config Mail (Machine  Host) ...................................................................... 10  
+=CO Change Output (Machine  Host)................................................................ 10  
+=DL Date/Time (Machine  Host) ..................................................................... 10  
+=EL ErrorList (Machine  Host) ........................................................................... 11  
+=ET ExternText (Machine  Host) ....................................................................... 11  
+=EV EventList (Machine  Host) .......................................................................... 11  
+=EX Extern States (Machine  Host) ................................................................... 12  
+=FC CRC32 failed (Machine  Host) ................................................................... 13  
+=FL Fix Blocklength (Machine   Host) ................................................................ 13  
+=GW Wysiwyg Data (Machine  Host) ................................................................ 13  
+=HS Hydraulic State (Machine  Host) ................................................................ 13  
+=IC Input Configuration (Machine  Host) ........................................................... 14  
+=JL JobLoad (Machine  Host) ........................................................................ 14  
+=JC JobLoad for Camera Job(Machine  Host) ............................................... 15  
+=MC Main Configuration (Machine  Host) .......................................................... 15  
+=MR Mail Record (Machine  Host) .................................................................... 16  
+=NR Next CRC32 (Machine  Host) .................................................................... 17  
+=OC Output Configuration (Machine  Host) ....................................................... 17  
+=PR Print Parameter  (Machine   Host) ............................................................. 17  
+=RC Reset Counter  (Machine   Host) ............................................................... 18  
+=RS Machine State Information (Machine  Host) .............................................. 18  
+=SC Service Configuration (Machine  Host) ...................................................... 19  
+=SH Service  History (Machine  Host) ............................................................... 20  
+=SM Mail Status (Machine  Host) ...................................................................... 20  
+=VS Version (Machine  Host) ............................................................................ 21  
+File Transfer ............................................................................................................................. 22  
+$RD Request-Directory (Machine  Host ) .......................................................... 22  
+$DI Directory-Info (Machine  Host) .................................................................... 23  
+$RF Request File (Host  Machine) .................................................................... 23  
+$FH File Header (Host  Machine) .................................................................. 24  
+$FT File Transfer (Host  Machine) ................................................................. 24  
+Transmissions with CRC32 ...................................................................................................... 25  
+
+--- PDF PAGE 3 ---
+ 
+ 
+Seite 3 von 27  05.05.2014 
+Mailing (Database) operation ................................................................................................... 26  
+History ...................................................................................................................................... 27  
+
+--- PDF PAGE 4 ---
+ 
+ 
+Seite 4 von 27  05.05.2014 
+General 
+ 
+The interface allows remote control and remote diagnosis access via Ethernet, 
+RS232 and modem. The interface is based on a dual-master protocol which is able to 
+send from both sides independently. 
+The protocol generates a frame around the LJscript-language so that the interface 
+can directly transfer script-sequencies. 
+To offer a terminal-function the protocol works without a direct package reply. For the 
+usage of a serial interface it is required to activate the handshake-controlled 
+hardware-flow control in the transmission range to avoid a receive-sited overflow.  
+All packages are started with a ^-character and are finished with the character <CR> 
+(Hex 0D). Optionally you can add a  <LF> (Hex 0A). 
+After the start character the destination address follows, which consists of a character 
+in the range of 0-9 and A-F. To address a LJ3-Printer you have to use the address 
+“0”. Further addresses are not used at the moment, they are just used as reserve for 
+later options. Afterwards a character continues which selects a command group. 
+These are:  
+ 
+Character  Command-group 
+* Script-instruction (a line continues as described  in LJ-script)  
+! Action-instruction (Printer control, e.g. nozzle open/closed, Print start, test 
+print etc.) 
+? Inquiry (The designation of the instruction which  has been inquired 
+continues e.g.?HS inquires the current hydraulic-settings)  
+= Parameter Transfer (e.g. =HS7100 2400 ..... is th e response of the 
+machine to ?HS inquiry) 
+$ File Transfer, Directory Infos 
+ 
+The transmitted data within the frame are ASCII-data which should not include the 
+codes ^ (0x5e) and <CR> (0x0d). If the character ^ should occur in the data it has to 
+be designated with a prepend backslash „\“ (\ ^). 
+Variables are passed as ASCII-coded decimal values which are separated by TABs if 
+nothing else has been specified.  
+ 
+The following definitions of the commands are only valid for the turned on device. If 
+the device is in standby mode, only the instruction !PO (Power ON), !RM (Reset) or 
+FileTransfer can be handled.  
+ 
+
+--- PDF PAGE 5 ---
+ 
+ 
+Seite 5 von 27  05.05.2014 
+Script Processing 
+ 
+The instructions which are described in the LJ-script can be transfered directly with 
+Frame-Header.  
+A script starts with 
+^0*BEGINLJSCRIPT<CR> 
+and ends with 
+^0*ENDLJSCRIPT<CR> 
+ 
+As soon as the instruction BEGINLJSCRIPT has been transmitted, the current job 
+data file (that means the work file which is loaded during the reboot of the system) is 
+deleted and will be overwritten with the following script instructions. As soon as the 
+ENDLJSCRIPT instruction has been transmitted the data file is passed to the RIP for 
+printing. In this situation **EXTERN** is displayed as job name.  
+ 
+<CR> is the character Carriage Return and has the value Hex 0D (0x0D). 
+ 
+ 
+You will find details regarding the LJ3 script language in the „Documentation LJ3 
+Script language“. 
+ 
+
+--- PDF PAGE 6 ---
+ 
+ 
+Seite 6 von 27  05.05.2014 
+Action instructions 
+Action instructions are commands which are transfered without parameters and 
+which carry out a direct reaction in the printer. The following actions are 
+implemented.  
+Overview 
+Command  Description 
+!GO Start Print-Ready 
+!ST Stop Print-Ready 
+!NC Nozzle Close 
+!NO Nozzle Open 
+!RC Reset Counter (Object Counter)  
+!FA Factory Reset 
+!MC Motor Step Close 
+!MO Motor Step Open  
+!LF Re-Load Fonts 
+!OK CRC OK (Host Printer) 
+!US User Suspend (Lock of printer operation) 
+!UR User Resume (Release of printer operation) 
+!EQ Error Quit  
+!PO Power ON (Out of Standby)  
+!PF Power OFF (in Standby mode)  
+!EN End of Data (Host Printer) 
+!RM Restart Machine (= Software Reset, only while S tandby)   
+!W0 Wysiwyg display off 
+!W1 Wysiwyg display on 
+!FF Flush Mail Fifo (Clearing the Mailing FIFO) 
+!LN The LJ3 sends in the protocol the length 
+!EM Switch on the echo mode 
+ 
+Details to commands 
+!RC  
+Reset all counters to its initial value which are defined in a job as counter reset 
+source. This function has no effect on the product counter (for settings of product 
+counter please see =CC)  
+Example:  ^0!RC 0x0D 
+Look at the command =RC. 
+!LF  
+This instruction is necessary if fonts have been changed or added and which should 
+be used by the current job.  
+Attention! This instruction aborts the print shortly.  
+ 
+ 
+
+--- PDF PAGE 7 ---
+ 
+ 
+Seite 7 von 27  05.05.2014 
+ 
+ 
+!US 
+This instruction prevents user - inputs for 10 seconds (information window on the 
+operator interface opens).  
+If the interface should be blocked for the operator for the duration of a remote 
+connection, the remote application has to repeat this instruction within 10 seconds 
+continuously or a communication should be proceeded within 10 seconds (inquire 
+status, read files etc.) that means the user can operate the device again after 
+activation of the suspend mode and a communication break of >10 seconds. This 
+function should provide an operation even in case of a connection abort. By sending 
+the  !UR command you can leave this mode and the operation will be enabled 
+immediately.  
+ 
+!EQ 
+Provides the acknowledgement of arising errors at the machine.  
+Errors have to be acknowledged (especially in the User Suspend mode) because the 
+machine will turn off after a certain period of time due to safety reasons. If and which 
+errors are occurred can be determined with?RS (see there). 
+ 
+ 
+!LN 
+Since  V60.0.00.56 
+The LJ3 sends from this moment in his protocol the length of data. This will be done 
+until the LJ3 will be switched off or he gets a factory reset command.  
+The protocol  is not changed for the receiving of the Leibinger-Jet3. Here the length 
+will not be sended. 
+The length is always a decimal number with 5 digits and comes directly after the 
+address byte and before the command group character. 
+This length defines the number of bytes which are coming from now on including the 
+terminating carriage return. 
+ 
+Example: 
+Host sends: LJ3 answers: 
+^0?RS        <CR> ^0=RS2 6 0 0 0        <CR> 
+^0!LN        <CR  
+^0?RS        <CR> ^000013=RS2 6 0 0 0       <CR> 
+ 
+!EM 
+Since  V60.0.01.4D 
+Switch on the cho mode. This remains switched on until the LJ3 will be switched off 
+or he gets a factory reset command. 
+Function: The LJ3 sends all action- and parametercommands directly after he 
+received it back to the host. The LJ3 does this only, when he can process this 
+command. These are the commands with the ! and = in the command group. 
+
+--- PDF PAGE 8 ---
+ 
+ 
+Seite 8 von 27  05.05.2014 
+Inquiries 
+With an inquiry you can demand parameters from the opposite side.  
+The opposite side responds on an inquiry with the according =XX parameter 
+command. 
+ 
+Overview of inquiries (Host  Machine)  
+Command Description 
+?EX Report Extern-States 
+?SH Report Service History 
+?IC Report Input Configuration 
+?HS Report Hydraulic States 
+?OC Report Output Configuration 
+?MC Report Main Configuration 
+?CC Report Current Counter  
+?SC Report Service Configuration 
+?VS Report Version 
+?JL Query name of loaded job 
+?JL Query name of loaded camera job 
+?EL Query ErrorList 
+?EV Query EventList  
+?JB Inquiry for the current print job. This inquiry  is sended from host to the 
+machine, hereupon the machine sends the job (in 
+^0*BEGINSCRIPT…. blocks (see above) 
+?SM GetMailStatus  
+?DL Query date/time 
+?RS Query status of data 
+?GW Query Wysiwyg  
+?ET Extern Text 
+ 
+
+--- PDF PAGE 9 ---
+ 
+ 
+Seite 9 von 27  05.05.2014 
+Parameter Transfer 
+ 
+With the help of parameter-transfer commands you can send current settings and 
+status-information from the machine to a host or new settings can be transfered from 
+host to the machine. The single parameters are separated with <TAB>-characters. In 
+case a parameter is empty, the current value will not be changed. 
+The following parameter-instructions are implemented:  
+ 
+ 
+=AC All Counter (Machine  Host) 
+Par1: Number of counter used in the current job 
+A job can have up to 32 counters. 
+For each counter there are 3 paramters: 
+Counter n: 
+Par 3*(n-1)+2: Done repetitions 
+Par 3*(n-1)+3: Countervalue High 
+Par 3*(n-1)+4: Countervalue Low 
+ 
+Parameter Details: 
+Done  repetitions 
+This is the value how often this counter value was printed. When the counter 
+parameter "repetitions" is 0, this value is always 1. 
+Counter value High und Low  
+Because a counter can have up to 10 figures, there are 2 32 bit values necessary. 
+ 
+ 
+ 
+ 
+=CC Current Counter (Machine  Host) 
+Par1: Product Counter 
+Par2: Stop after X Products 
+Par3: Total print counter 
+ 
+Parameter Details: 
+Product Counter  
+Current status of product counter. 
+ 
+Stop after X Products  
+With reaching this product counter status the print is stopped automatically by the 
+LJ3. (Exception 0 = function deactivated)  
+ 
+Total print counter  
+The total print counter can only be read (read only) and not be changed. 
+His value is the number of prints which this Jet3 has done. 
+ 
+
+--- PDF PAGE 10 ---
+ 
+ 
+Seite 10 von 27  05.05.2014 
+ 
+ 
+=CM Config Mail (Machine  Host) 
+Par1: StopAtNo 
+ 
+After sending this parameter the LJ3 stops the print automatically if this mail record 
+number has been printed.  
+Exception is 0 (default). No print stop is carried out for 0.   
+ 
+ 
+ 
+=CO Change Output (Machine  Host) 
+Par1: No. of the output which should be changed. Range of value: 0...8 
+Par2: Wished state of the output. Range of value: 0 or 1 
+ 
+The Jet3 has the outputs 1...8.  
+Special case: Output No. 0: 
+^0=CO0 1: Command Initialising 
+^0=CO0 0: Command End. The Jet3 now controls the ou tputs itself again. 
+ 
+Before with this command could be worked, at first one time the command 
+“Initialising” should be sent. Only in this case the settings made in I/O Settings for 
+these outputs believe conserved for which no CO command will be sended. 
+To avoid conflicts, the outputs which will be changed  with CO, should not be used in 
+the I/O Settings. 
+Attention: The output „Warning“ is not available during working with CO. 
+ 
+Example: 
+^0=CO0 1 Initialising.  
+^0=CO3 1 Set output 3 to 1. Output „Warning“ is not  available. 
+… 
+^0=CO0 0 End. Output 3 and „Warning“ are in the ori ginal state again. 
+ 
+=DL Date/Time (Machine  Host)  
+Par1:  Year 
+Par2:   Month 
+Par3:   Day  
+Par4:  Weekday (0-6, 0 = Sunday) 
+Par5:   Hour 
+Par6:  Minute 
+Par7:  Second 
+ 
+ 
+= 
+
+--- PDF PAGE 11 ---
+ 
+ 
+Seite 11 von 27  05.05.2014 
+=EL ErrorList (Machine  Host) 
+ 
+The error list is transmitted in blocks and every block has max. 32 entries. The 
+ErrorList contains: 
+Par1: Number of first entry (1…) 
+Par2: Total number of entries  
+Par3: Number of entries in this block  
+Par4: Entry1 
+Par5: Entry2 
+….. 
+ 
+Every entry is transmitted in the form   yy-mm-dd hh:mm:ss/errornumber  
+ 
+ 
+=ET ExternText (Machine  Host) 
+Par1: String 
+String = External text with up to 256 characters and  <CR> for final identification  
+Reaction time of  the LJ3: 20...40msec 
+ 
+=EV EventList (Machine  Host) 
+ 
+The event list is transmitted in blocks and every block has max. 16 entries. The 
+EventList contains:  
+Par1: Number of the first entry (1…) 
+Par2: Total number of entries 
+Par3: Number entries in this block  
+Par4: Entry1 
+Par5: ….. 
+ 
+Every error entry is transmitted in the form  
+yy-mm-dd hh:mm::ss/cp/ss/st/mr/pr/dp/ft/ms 
+with 
+cp Compressor-Pulse 
+ss Sips of solvent 
+st Sips of ink 
+mr MixRatio 
+pr Pressure 
+dp Diaphragma-Position 
+ft FillTime 
+ms MachineState  
+ 
+ 
+ 
+ 
+
+--- PDF PAGE 12 ---
+ 
+ 
+Seite 12 von 27  05.05.2014 
+=EX Extern States (Machine  Host) 
+Par1: Actual Speed  
+Par2: Inputs (Integer number from 0 – 2^17) 
+Par3: MaxSpeed 
+Par4: Direction 
+Par6: PrintGo 
+Par7: Reserved 
+Par8: Reserved 
+Par9: Reserved 
+ 
+Parameter details: 
+Actual Speed: 
+Information of the current printing speed in m/min  
+ 
+Inputs: 
+Bit 0 = X4.9 
+Bit 1 = X4.22 
+Bit 2 = X4.10 
+Bit 3 = X4.23 
+Bit 4 = X4.11 
+Bit 5 = X4.24 
+Bit 6 = X4.2 (Counter Increment) 
+Bit 7 = X4.1 (Counter Reset)  
+Bit 8 = X4.3 (Job select 0)  
+Bit 9 = X4.16 (Job select 1)  
+Bit 10 = X4.4 (Job select 2)  
+Bit 11 = X4.17 (Job select 3) 
+Bit 12 = X4.5 (Job select 4)  
+Bit 13 = X4.18 (Job select 5) 
+Bit 14 = X4.6 (Job select 6) 
+Bit 15 = X4.19 (Job select 7) 
+Bit 16 = X4.7 (Job select 8)  
+Bit 17 = X4.20 (Job select 9)  
+  
+Max Speed: 
+Maximum possible printing speed for current setting in m/min. 
+ 
+ 
+Direction: 
+Encoder direction: 
+0 = Backward 
+1 = Forward  
+ 
+PrintGO 
+0 = PrintGo Sensor Signal is Low  
+1 = PrintGo Sensor Signal is High  
+ 
+Reserved: 
+Always 0  
+
+--- PDF PAGE 13 ---
+ 
+ 
+Seite 13 von 27  05.05.2014 
+ 
+=FC CRC32 failed (Machine  Host) 
+Par1: CRC32 Checksum which has been calculated by the machine and which did 
+not correspond with CRC32 transmitted with =NR.  
+ 
+ 
+=FL Fix Blocklength (Machine   Host) 
+since V60.0.00.56 
+Par1: Blocklength in bytes 
+ 
+With this command the LJ3 will be adjusted to send with a fix block length. 
+All data, which the LJ3 sends, will be filled up to this block length with blanks. 
+The block length can be adjusted in the range between 1 and 2048. It will be active 
+until the next power on of the Ljet3. 
+ 
+ 
+=GW Wysiwyg Data (Machine  Host) 
+The response happens block by block with max. 60 characters per line. 
+For final identification the sender (machine) transfers a ^0!EN. 
+ 
+Data layout: 
+60 characters per line, nibble coded that means 30 bytes per line  
+Coding High Nibble (Bit 7-4) 0-15 = A-P 
+Coding LowNibble (Bit 3-0) 0-15 = A-P 
+ 
+Byte 1-16 Header information: 
+Byte 1-4 = Overall width of bitmap 
+Byte 5-8 = Height of bitmap in pixel 
+Byte 9-12 = Job ID of this bitmap (for ext. Jobselect the applied ext. number)  
+Byte 13-16 = Number of actual delivered strokes  
+ 
+Byte 17 till end: Stroke data 
+ 
+ 
+=HS Hydraulic State (Machine  Host) 
+Par1: ActFalltime 
+Par2: ActPress 
+Par3: ActSuctpump 
+Par4: Diaphragm Position 
+Par5: Mix-Value 
+Par6: State 
+ 
+Parameter details: 
+Act Falltime: 
+
+--- PDF PAGE 14 ---
+ 
+ 
+Seite 14 von 27  05.05.2014 
+Current fall time of the viscometer in ms.  
+ 
+ActPress: 
+Current pressure in mBar  
+ 
+ActSuctpump  
+Current suction pump value in % 
+ 
+Diaphragm position 
+Current diaphragm position of the pressure tank. 
+(Dimensionless, normal operating positions between 700 and 1400)  
+ 
+Mix-Value 
+Current solvent mix-value in ink to solvent.  
+0 = no solvent admixture  
+ 
+State: 
+Not documented! 
+ 
+ 
+=IC Input Configuration (Machine  Host) 
+Par1: Input1 (assigned X4.9 function)  
+Par2: Input2 (assigned X4.22 function) 
+Par3: Input3 (assigned X4.10 function) 
+Par4: Input4 (assigned X4.23 function) 
+Par5: Input5 (assigned X4.11 function) 
+Par6: Input6 (assigned X4.24 function) 
+ 
+Parameter details: 
+Decoding of numbers to the assigned function:  
+0 = Disabled 
+1 = Nozzle Open  
+2 = Nozzle Close  
+3 = PrintStart 
+4 = PrintStop 
+5 = Printer Shutdown 
+6 = Horizontal Mirror 
+7 = Cutting Synchronisation 
+ 
+ 
+=JL JobLoad (Machine  Host) 
+Machine->Host: The Ljet sends the current Jobname with path. 
+Host->Machine: The Ljet loads the job with the name in Par1. 
+Reaction time of the LJ3: 50...150msec 
+ 
+Par1: Jobname (with path information) 
+Example: ^0=JLFFSDISK\JOBS\TESTPRINT.JOB 0x0D 
+
+--- PDF PAGE 15 ---
+ 
+ 
+Seite 15 von 27  05.05.2014 
+ 
+ 
+ 
+ 
+=JC JobLoad for Camera Job(Machine  Host) 
+Machine->Host: The Ljet sends the current Jobname with path. 
+Host->Machine: The Ljet loads the job with the name in Par1. 
+ 
+Par1: Jobname (with path information) 
+Example: ^0=JCFFSDISK\JOBS\TESTPRINT.JOB 0x0D 
+ 
+ 
+ 
+=MC Main Configuration (Machine  Host) 
+Par1: DirectPrint 
+Par2: Encoder Setting 
+Par3: Reserved (0)  
+Par4: Reserved (0) 
+Par5: Reserved (0) 
+Par6: Set Fall Time 
+Par7: Set  Pressure 
+Par8: Reserved (0) 
+Par9: Set Visco Correction 
+Par10: System Frequency 
+Par11: Inknumber 
+Par12: Interval Time on 
+Par13: Interval Time off 
+ 
+Parameter Details: 
+DirectPrint:   
+0 = Direct Print  function deactivated / 1 = Direct Print function activated 
+ 
+Encoder Setting: 
+0 = RS422 
+1 = TTL (5V level)  
+2 = HTL (24V level)  
+ 
+Set Fall Time 
+Current set target fall time of the viscometer in ms  
+ 
+SetPressure 
+Current set system pressure in mBar  
+ 
+SetViscoCorrection 
+Current set viscometer correction factor  
+ 
+
+--- PDF PAGE 16 ---
+ 
+ 
+Seite 16 von 27  05.05.2014 
+SystemFrequency 
+Dot frequency in kHz  
+ 
+InkNumber  
+Ink-Number which is filled in the printer. 
+ 
+Interval Time ON / Off  
+Interval times in the following format: 
+Hour*100+minutes 
+Hours 0-23 and minutes 0-59 
+ 
+=MR Mail Record (Machine  Host) 
+Par1: String  
+ 
+The string is assembled as following (e.g. 3 Field Record): 
+No + tab + Field1 + tab +Field2 + tab + Field3+ … + tab + {[h][ox][rn]} 0x0D 
+Example: ^0=MR17 Miss Jane Miller  {ho2r3} 0x0D 
+ 
+When in the job of the Leibinger-Jet3 is a graphic which uses mailing, the 
+corresponding text field should contain a graphic. The format of the graphic is 
+described in the document “Manual_LJ3_Interfaceprotocol.pdf” in the chapter  OBJ 
+Parameter list. 
+ 
+Example: ^0=MR0 111 (8 3 FF81FF) 0x0D  
+ 
+Definitions: 
+No. is a displayed ASCII consecutive 32 Bit No. without any prepend zeros and has 
+to exist coercively !  
+Field  should not contain ^ or has to be replaced by \^ ! 
+A record can contain up to 255 fields. 
+ 
+Since V60.0.1.22 there are the Property-Parameter  in this braces:: {}. These are 
+after a tab directly before the 0x0D. 
+The brackets [] are not used. They have the meaning that these parameters inside of 
+it are optional. Each of these 3 parameters may be used only one time. 
+ 
+h = horizontal mirroring of this record 
+o0 = Orientation 0° 
+o1 = Orientation 90° 
+o2 = Orientation 180° 
+o3 = Orientation 270° 
+rn = n repetitions of this record 
+ 
+The parameter repetition may only be used when the 1. Parameter, that is the 
+Number No., is always 0. 
+ 
+Examples: 
+^0=MR0 X13.1  {hvr3}0x0D 
+
+--- PDF PAGE 17 ---
+ 
+ 
+Seite 17 von 27  05.05.2014 
+^0=MR0 X14.2  {r21}0x0D 
+ 
+=NR Next CRC32 (Machine  Host)  
+Par1: CRC32 Checksum of the proxmiate communication string.  
+ 
+=OC Output Configuration (Machine  Host) 
+Par1: Output1 (signal assigned to X3.1) 
+Par2: Output2 (signal assigned to X3.2) 
+Par3: Output3 (signal assigned to X3.3) 
+Par4: Output4 (signal assigned to X3.4) 
+Par5: Output5 (signal assigned to X3.9) 
+Par6: Output6 (signal assigned to X3.10) 
+Par7: Output7 (signal assigned to X3.11) 
+Par8: Output8 (signal assigned to X3.12) 
+ 
+ 
+ 
+Parameter Details: 
+Decoding of No. to the assigned signal  
+0 = Disabled  
+1 = Refill Warning  
+2 = Error/Print Stop 
+3 = Print Readyness 
+4 = Print active 
+5 = Product counter reached Value  
+6 = PrintGo 
+7 = Encoder Signal (left/right) 
+8 = Power fail out 
+9 = Counter reached end value 
+ 
+=PR Print Parameter  (Machine   Host) 
+since  V60.0.01.04D 
+Par1: Print parameter type, which sould be changed 
+Par2: New value for the parameter 
+ 
+With this command a single parameter in the Jet3 can be changed. 
+ 
+Par 1:  Meaning of Par1:  Unit of Par 2:  Time of the result:  
+1 Print Go delay Mikrometer. 
+1mm=1000µm 
+With the 2. PrintGo 
+2 Print Go distance Mikrometer. 
+1mm=1000µm 
+With the 2. PrintGo 
+3 Strokedistance Mikrometer. 
+1mm=1000µm 
+With the next PG 
+4 Printing hight 30 ... 100 With the next PG 
+
+--- PDF PAGE 18 ---
+ 
+ 
+Seite 18 von 27  05.05.2014 
+5 Speed of the internal 
+encoder pulses 
+In dm/min   *) With the next PG 
+Example: 
+^0=PR2 31000  Sets the PrintGo distance to 31mm (31 000µm) 
+ 
+*) from V60.0.1.17. before: m/min 
+ 
+ 
+=RC Reset Counter  (Machine   Host) 
+since  V60.0.01.02 
+Par1: ID-Number of the counter 
+Par2: Start value 
+ 
+Reset counter means that the counter will be set to the start value. 
+ 
+ 
+Par1 contains the ID-Nr. of the counter, which have to be resetted. If Par1=0,all 
+counters are resetted. 
+With Par2 you can send the startvalue. If this value is –1 the startvalue will be the 
+startvalue of the job. Otherwise the counter will be resetted to this parameter.If no 
+Par2 is given, Par2 = -1(Jobsetting) 
+ 
+ 
+ 
+=RS Machine State Information (Machine  Host)  
+Par1: Nozzle state  
+Par2:  State of Machine  
+Par3: Error 
+Par4: Headcover 
+Par5:  ActSpeed 
+ 
+Definitions: 
+Nozzle state: 
+0 = invalid (Standby or initialization) 
+1 = opens 
+2 = is open 
+3 = closes 
+4 = is closed 
+5 = inter, in between 
+ 
+ 
+State of Machine 
+1 = Standby (The other values e.g. nozzle state are invalid !)  
+2 = Initialization phase (incl. Bleeding) 
+
+--- PDF PAGE 19 ---
+ 
+ 
+Seite 19 von 27  05.05.2014 
+3 = Interval or Service Panel  
+4 = Ready for Action (ready for operation, instructions as e.g. nozzle open can be                 
+carried out)  
+5 = Ready for Printstart (ready for print start, that means nozzle is open and  
+      oscillator voltage is set) 
+6 = Printing 
+ 
+Error: 
+0 = no error 
+xxx = Error number 
+ 
+Besides the error code further information regarding the error source and malfunction 
+are defined in the error number: 
+Bit 
+No.  
+Meaning Values 
+26/25 Error source 00 = FEP CPU.  (User interface) 
+01 = RIP CPU    (Print processing + hydraulic) 
+10 = SDC CPU  (Dots + Print head control) 
+27 Malfunction 
+Shutdown 
+0 = Device turns off after 30min. if no confirmation 
+happens.  
+1 =  Device turns not off   
+29/28 Malfunction 
+Signal tone 
+transmitter 
+00 = Permanent signal tone 
+01 = one-time signal tone 
+10 = no signal tone 
+31/30 Malfunction 
+Display  
+00 = Display error window    
+01 = Display warning window  
+10 = Display message window  
+After masket reading of the bits 25-31 one error code remains which specifies the 
+occured error. Error texts which should be displayed have to bee seen in the  
+error*.txt data files in the folder FFSDISK\LJ3. (Therein you will find a language 
+dependent decoding of the error numbers to the error text)  
+ 
+Headcover 
+0 = Headcover closed 
+1 = Headcover open  
+ 
+ActSpeed 
+In m/min 
+ 
+ 
+=SC Service Configuration (Machine  Host) 
+Par1: Service Hour Interval 
+Par2: Service Year Interval 
+ 
+Parameter Details: 
+ServiceHourInterval: 
+Operating hours between two service cycles 
+
+--- PDF PAGE 20 ---
+ 
+ 
+Seite 20 von 27  05.05.2014 
+ 
+ServiceYearInterval: 
+Days between two service cycles  
+ 
+ 
+=SH Service  History (Machine  Host) 
+Par1: Operating Hours 
+Par2: Last Service Hours 
+Par3: Last Service Date 
+ 
+Parameter details: 
+Layout Last Service Date (32 Bit): 
+Bit 31-26: Year-2000 
+Bit 25-22:   Month (1-12) 
+Bit 21-17:   Day of month(1-31)  
+Bit 16-12:   Hour (0-23) 
+Bit 11-6:     Minute (0-59) 
+Bit 5-0:       Second (0-59) 
+ 
+ 
+=SM Mail Status (Machine  Host)  
+Par1: Fifo Depth  
+Par2: Fifo Entries 
+Par3: LastStartedPrintNo 
+Par4: StopAtNo 
+Par5: LastStartedPrintNoWasFinished 
+ 
+Description of parameters: 
+FifoDepth   =  Available batch depth of the Mailing  Fifos in the LJ3. (Normally 
+    256 records) 
+FifoEntrys   = Number of mail records which are ava ilable in the mailing Fifo  
+LastStartedPrintNo  = No.of the mail record which’s print has already started  
+          (0 =if no one is available) 
+LastStartedPrintNoWasFinished 
+   = Flag (If = 0, the last print was started, but not finished, 
+ if >0,  the last print was finished, but the next one for sure not 
+started)   
+StopAtNr   = Record number where a print stop is ge nerated  
+                         (=Value which has been set  before with ^0=CM )  
+ 
+To be sure that this parameters are actual it is better when the host sends the 
+command ^0?SM twice to the Leibinger-Jet3. The second  answer of the Leibinger-
+Jet3 is always actual. 
+Please recognize that the value for FifoEntries always is reduced by one as the 
+number of records  you actually have sent. Reason: The record which is in printing is 
+already removed. 
+
+--- PDF PAGE 21 ---
+ 
+ 
+Seite 21 von 27  05.05.2014 
+ 
+ 
+ 
+=VS Version (Machine  Host) 
+Par1: FPGA-Version 
+Par2: RIP-Software Version 
+Par3: SDC-Software Version 
+Par4: FEP-Software Version 
+Par5:KernelVersion 
+Par6:SystemType 
+Par7:LanguagePack 
+Par8:FontPack 
+Par9: LJVersion of firmware 
+Par10: Type 
+Par11: Serialnumber 
+ 
+Parameter details: 
+All parameters are tab separated strings  
+ 
+
+--- PDF PAGE 22 ---
+ 
+ 
+Seite 22 von 27  05.05.2014 
+ 
+File Transfer 
+In the FileTransfer-area data and directories are exchanged. The following 
+instructions are supported:  
+ 
+$RD Request-Directory (Machine  Host ) 
+Sends a Dirinfo inquiry to the machine.   
+The machine responds with a DI-info.  
+ 
+Par1: Directory string 
+ 
+In the directory string also the common substitution characters are valid (Joker *) 
+Some examples: 
+ 
+Existence of the job check directories: 
+Inquiry: ^0$RDFFSDISK\Jobs 
+Response: ^0$DI1 01 !Jobs 
+(= Directory exists)  
+ 
+Inquiry: ^0$RDFFSDISK\Jobis 
+Response: ^0$DI1 00  
+(= this directory or this data file does not exist)  
+ 
+Readout all data filenames of a directory  
+Inquiry: ^0$RDFFSDISK\Jobs\* 
+Response:  ^0$DI1  06      COUNTER.JOB     DATE.JOB        DM.JOB  Testprint.job 
+          LINIE.job       LJ24 Test.job 
+ 
+Display all  ISO Fonts in the fonts directory   
+Inquiry: ^0$RDFFSDISK\Fonts\ISO*.lft 
+Response:  ^0$DI1  09      ISO1_5x5.lft    ISO1_7x5.lft    ISO1_9x7.lft    ISO1_12x8.lft   
+       ISO1_14x10.lft   ISO1_16x10.lft  ISO1_24x18. lft  ISO1_32x20.lft   
+        ISO1_5x7flue.lft 
+ 
+Standard directories in the LJ3  
+Data carrier Memory type Path 
+Internal Flash Disk  Jobs FFSDISK\Jobs 
+Fonts FFSDISK\Fonts 
+Graphics FFSDISK\Graphics 
+SD Card  Jobs Storage Card\LJ3\Jobs 
+Fonts Storage Card\LJ3\Fonts 
+Graphics Storage Card\LJ3\Graphics 
+USB Stick  Jobs Hard disk\LJ3\Jobs 
+Fonts Hard disk\LJ3\Fonts 
+Graphics Hard disk\LJ3\Graphics 
+ 
+
+--- PDF PAGE 23 ---
+ 
+ 
+Seite 23 von 27  05.05.2014 
+$DI Directory-Info (Machine  Host) 
+ 
+The directory-info is transmitted in blocks and every block has max. 32 entries. The 
+DirInfo contains  
+Par1: 0= further blocks follow, 1=last block 
+Par2: Number of entries in this block 
+Par3: Entry1 
+Par4: ….. 
+Every single entry has a data filename.  
+ 
+ 
+$RF Request File (Host  Machine) 
+ 
+Sends a FileTransfer inquiry to the machine.  
+Par1: Data file with directory information 
+ 
+To copy a job of the internal Flashdisk to the host, you have to send:  
+ 
+^0$RFFFSDISK\Jobs\MyJob1.job<CR> 
+ 
+The machine responds with FH and FT-instructions.  
+
+--- PDF PAGE 24 ---
+ 
+ 
+Seite 24 von 27  05.05.2014 
+$FH File Header (Host  Machine) 
+File-transfers are implemented from host to machine as well as from machine to host. 
+Every FileTransfer has to be started with a Header. It contains:   
+ 
+Par1: FileName with path. As path is always transferred the path on the machine 
+side. 
+Par2: Number of the following FT-blocks. In case a 0 is transferred, the required data 
+file cannot be opened. 
+ 
+$FT File Transfer (Host  Machine) 
+With this instruction you can transfer a File Transfer block.  
+Par1: Blockno 
+Par2: Blockcheck (=Checksum modulo 256 of all data bytes of this block) 
+Par3: Data.  
+The data are transmitted as nibble-string with 4 bit per character. The first nibble has 
+the bits 7-4 of the first byte, the second the bits 3-0, the third nibble the bits 7-4 of the 
+second byte etc.. The nibbles are coded as values from A…P (A=0, P=15). 
+After the receiver has analyzed the package, a file Acknowledge (FA) has to be 
+returned.  
+ 
+$FA File Acknowledge 
+Confirmation of received file package  
+Par1: Blockno. 
+Par2:  0=transmission error, block has to be repeated 
+  1=understood, Block okay 
+  2=Cancel complete File-transfer 
+
+--- PDF PAGE 25 ---
+ 
+ 
+Seite 25 von 27  05.05.2014 
+Transmissions with CRC32 
+To guarantee a secure data transfer also with a RS232 transmission and interfering 
+field environment, the protocol offers a CRC32 procedure.  
+ 
+This support does not apply to the file transfers (for this separated block check 
+numbers are used. See  $FT File Transfer)  
+ 
+If a transmission with CRC32 should be carried out is always initiated by the host 
+prior to every transmission. 
+For the procedure of a CRC32 transmission the following commands and parameter 
+transfers are important:  
+ 
+ParameterTransfer: NextCRC32 (Implementation Host<- >LJ3)  
+^0=NR  Par1 = CRC32 Checksum 
+ 
+ParameterTransfer: CRCFailed (Implementation Host<- LJ3)  
+^0=FC  Par1 = CRC32 Checksum  
+ 
+Command:: CRCok  (Implementation Host<-LJ3)  
+^0!OK 
+ 
+Description of operation: 
+If you would like to have a secured transmission, the host calculates previous to 
+every transmission the CRC32 checksum of the next transmission string and 
+transfers it with ^0=NC to the LJ3. 
+It memorizes this CRC32 checksum, calculates and compares the CRC32 checksum 
+of the transfered string for the next incoming communciation string.  
+If both are unequally a response with the checksum which has been calculated in the 
+LJ3 will be sent to the host ^0=FC. 
+The host is then able e.g. to carry out a transmission repetition.  
+If the checksum is okay the LJ3 responds (prior to the transmission of possible data) 
+with ^0!OK. 
+If an inquiry of data (^0?XX)with CRC32 has been sent to the LJ3 a CRC32 
+checksum is transfered from the LJ3 to the host prior to every response line.  
+ 
+Example of a  (Hyperterminal) sequence with CRC32: 
+Query of the current used jobs  (H = Host, L = LJ3): 
+^0=NR3957421711      CRC32 of the following ^0?JL inquiry (H->L)  
+^0?JL       inquiry itself (H->L ) 
+^0!OK       the confirmation of the LJ3 the CRC OK (H<-
+L)  
+^0=NR3560773416     CRC32 of the pending response (H<-L)  
+^0=JL\FFSDISK\JOBS\Testprint.job    response itself (H<-L)  
+ 
+
+--- PDF PAGE 26 ---
+ 
+ 
+Seite 26 von 27  05.05.2014 
+Mailing (Database) operation 
+ 
+The commands and parameter transfers which are relevant for the mailing operation 
+are:  
+^0=MR String  
+^0=CM Par1 
+^0?SM and accordant response from LJ3 ^0=SM 
+^0!FF 
+ 
+Info regarding performance/Procedure: 
+ 
+- For a print stop all FIFO contents and parameters are deleted (StopAtlfd = 0)  
+Texts which are transmitted by the protocol can be changed in length. That 
+means the „Wildcars“, which are set in the editor are only used for the editor 
+after rebooting of the job or by sending a “Zero” string.  
+If a fixed text length is required this has to done in the application which sends 
+the mailing text. (is also valid for “Extern Text”)  
+- In the LJ3 all mail messages are checked for ascen ding numbering during 
+readout of the FIFO and in case this regulation can be not observed a 
+„Warning“ message is generated. Exceptions are mail records with 0.  
+- If the StopAtLfd value is >0, the print will be au tomatically stopped by reaching 
+this number.  
+- The LJ3 checks the numbering with each PrintGo(PG) . With RecordNo 0 no 
+check will be done and when the mailing buffer gets empty, with each PG the 
+last received record will be printed once more. When the record numbers are 
+numbered, this numbering will be checked. When this is not correct, a stop 
+print and an error  will be caused. When there is a numbering, the mailing 
+buffer may not get empty, otherwise an error and a Stop print will be caused. 
+Around 3 Milliseconds before a PG is coming, the mailing buffer must have at 
+least one record. Is the speed 180 m/min or more, the mailing buffer must 
+have at least one record 3 Milliseconds before the last stroke is printed. 
+Due to the above described performance the following is applied for the consecutive 
+record number:  
+1. It has to be always available  
+2. It has to be 0 or numbered in ascending order an d serially (No = No+1) 
+3. The first number of a new number sequence has to  be always 0. 
+ 
+Example: 0   0   0   0   500   501   502   503   0   100   101   102   ... 
+ 
+ 
+ 
+ 
+ 
+
+--- PDF PAGE 27 ---
+ 
+ 
+Seite 27 von 27  05.05.2014 
+Hint: 
+ 
+If Extern Text or Mailing operation is carried out with Unicode Fonts (defined in the 
+accordant job) the text data has to be transferred hexadecimal coded! 
+ 
+e.g. " Hello World"   has to be transferred as following 
+00480065006C006C006F00200057006F0072006C0064 
+ 
+ 
+ 
+ 
+History 
+ 
+V1.3  Command !LN added 
+V1.4  Command =FL added 
+V1.5  Command =RC added 
+V1.6  Command !EM added 
+  Command =PR added 
+V1.7  Command ?CC: Total print counter added 
+V1.7.1  Command =AC added 
+V1.7.2  Parameter 9 in command =OC added 
+V1.7.3  New: Command ?ET 
+V1.7.4  Command PR: Speed at internal encoder pulse s is now dm/min 
+V1.7.5  Command =MR: Grafic Mailing added (since V6 0.0.1.22) 
+V1.7.6  Command =MR: Property-Parameter added (sinc e V60.0.1.22) 
+V1.7.7  Command =CO implemented (since V60.0.25.0) 
+ 

@@ -1,0 +1,167 @@
+
+--- PDF PAGE 1 ---
+ 
+ 
+ 1
+ 
+ 
+Connection type Ethernet (LAN):  
+ 
+At the Leibinger-Jet 3 you must adjust:  
+1. Settings / Basic settings / IP_Adress 
+ IP-Adress: 172.16.23.66      (or an other) 
+Subnetmask: 255.255.0.0  
+2. Extra / Interface settings / Connection Typ 
+ Ethernet 
+  Port: 3000 
+Connect the Leibinger-Jet3 with the LAN of your computer with a RJ45-Patchcable from 
+where you want to start Hyperterminal. If you use a direct connection between computer and 
+Leibinger-Jet 3 please use a crossed cable. If you have a connection over a Switch or a Hub, 
+please use a not crossed cable. 
+ 
+ 
+Test the connection: 
+At the PC you must open a DOS-Box: Start / Execute / cmd  
+ 
+Click on the OK button. 
+ 
+Enter the command ping 172.16.23.66 
+ 
+
+--- PDF PAGE 2 ---
+ 
+ 
+ 2
+When you get an answer you have a connection to the Leibinger-jet 3. 
+ 
+To be sure that you have the connection to your Leibinger-jet3 and not to an other device, 
+switch the Leibinger-Jet3 off and enter the command ping 172.16.23.66 once more. Now you 
+must get timeout messages: 
+ 
+ 
+ 
+ 
+ 
+
+--- PDF PAGE 3 ---
+ 
+ 
+ 3
+Connectiontyp RS232 (seriell):  
+ 
+At the Leibinger-Jet 3 you must adjust:  
+1. Extra / Interface settings / Connection Typ 
+Serial Interface 
+2. Baudrate:  f.e. 9600 
+Parity:  f.e. None 
+ 
+ 
+Connect the Leibinger-Jet3 with a RS232 cable with the COM-Port of your computer from 
+where you want to start Hyperterminal. 
+ 
+Pin assignment at a Sub-D Connection with 9 pins (DB9):  
+Connect the ground line with each other: Connect pin 5 with pin 5. 
+Cross the Rx and the Tx line. Connect pin 2 with pin 3 and pin 3 with pin 2. 
+Using hardware handshake: Connect pin 7 with pin 8 and pin 8 with pin 7 (crossed 
+RTS/CTS). 
+Without Hardware handshake: Make a bridge between 7 and 8 at the socket of the Leibinger-
+Jet 3. 
+ 
+ 
+
+--- PDF PAGE 4 ---
+ 
+ 
+ 4
+Hyperterminal Version 5.1:  
+The Hyperterminal you will find under Start / All Programs / Accessories / Communication 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+With Ethernet (LAN): 
+ 
+ 
+ 
+ 
+ 
+
+--- PDF PAGE 5 ---
+ 
+ 
+ 5
+With RS232: 
+ 
+ 
+
+--- PDF PAGE 6 ---
+ 
+ 
+ 6
+After clicking Konfigurieren: 
+ 
+Here you must adjust the same as at the Leibinger-Jet3. (Look ahead) 
+ 
+Click on the mouse pad „Eigenschaften“, then on the registry card „Einstellungen“: 
+ 
+
+--- PDF PAGE 7 ---
+ 
+ 
+ 7
+ 
+ 
+After Clicking on ASCII-Konfiguratin you get this dialgue. Switch on the first 3 switches: 
+ 
+ 
+ 
+ 
+
+--- PDF PAGE 8 ---
+ 
+ 
+ 8
+Here you see 6 examples of communication: 
+ 
+ 
+ 
+1.^0?RS    Status request. The Ljet answers with  ^0=RS 6 … 
+2. ^0=JLFFSDISK\JOBS\test.job The Ljet loads the job test.job 
+3. ^0?SM    Get Mail Status. The Ljet answers with ^0=SM256 … 
+     The mail buffer has 0 entries  
+4. ^0=MR0 11111 AAAAA Send a mail record to the Ljet 
+5. ^0?SM    Get Mail Status. The Ljet answers with ^0=SM256 … 
+     The mail buffer has 3 entries 
+6. ^0!GO    send the print start command to the LJet 
+ 
+The Job test.job should contain two objects with extern text – mailing. The field numbers 
+should be 1 and 2.  
+The command ^0?SM should be sent twice, because the first answer is not always actual. 
+ 
+Field 1 prints: 
+Print Go 1: 11111 
+Print Go 2: 22222 
+Print Go 3: 33333 
+Print Go 4: 33333 
+… 
+ 
+Field 1 prints: 
+Print Go 1: AAAAA 
+Print Go 2: BBBBB 
+Print Go 3: CCCCC 
+Print Go 4: CCCCC 
+… 
+ 
+
+--- PDF PAGE 9 ---
+ 
+ 
+ 9
+End of document 
+Bruttel, June. 2.2009 

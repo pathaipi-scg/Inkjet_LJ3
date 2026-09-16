@@ -1,0 +1,1447 @@
+
+--- PDF PAGE 1 ---
+ 
+ 
+Page 1 from 32  25/04/2014 
+ 
+Documentation Leibinger-Jet3 Script language 
+      V1.6.0.15 
+Summary 
+ 
+Language layout ......................................................................................................................... 3 
+Syntax: .................................................................................................................................... 3 
+Coordinate system .................................................................................................................. 3 
+Keywords ............................................................................................................................... 4 
+Beginning of Script ................................................................................................................ 5 
+End of Script ........................................................................................................................... 5 
+Layout of parameter lists ............................................................................................................ 6 
+JLPAR parameter list (Job list parameter) ............................................................................. 6 
+Print Height ........................................................................................................................ 6 
+PrintGo Signal .................................................................................................................... 6 
+PrintGo-Gate Signal ........................................................................................................... 6 
+Encoder signals .................................................................................................................. 7 
+Rotation, mirror-inverted ................................................................................................... 7 
+Encoder resolution .............................................................................................................. 7 
+Shifting Change of date ...................................................................................................... 7 
+Backward Lock .................................................................................................................. 7 
+BEGINJOB parameter list: ..................................................................................................... 8 
+ID-number: ......................................................................................................................... 8 
+ENDJOB parameter list .......................................................................................................... 8 
+JOBPAR parameter list (Job parameter) ................................................................................ 9 
+PrintGo-delay ..................................................................................................................... 9 
+PG-repetition ...................................................................................................................... 9 
+PG-distance ........................................................................................................................ 9 
+Stroke distance ................................................................................................................... 9 
+Print Mode ........................................................................................................................ 10  
+Flight time compensation ................................................................................................. 10  
+Stroke monitoring ............................................................................................................. 11  
+PrintGo monitoring .......................................................................................................... 11  
+PGHoldOff ....................................................................................................................... 11  
+IdentNr CameraJob .......................................................................................................... 11  
+CameraJob Name ............................................................................................................. 11  
+Max. products between LJ3 and camera .......................................................................... 11  
+Product offset between LJ3 and camera ........................................................................... 11  
+Cameratrigger-delay ......................................................................................................... 12  
+Print stop interrupts print-out immediately ...................................................................... 12  
+Indexcounter of previous camera job data ....................................................................... 12  
+CNT parameter list (Counter parameter) ............................................................................. 13  
+Start value: ........................................................................................................................ 13  
+Initialisation value: ........................................................................................................... 13  
+End value: ......................................................................................................................... 13  
+Increment: ......................................................................................................................... 13  
+Repetitions: ....................................................................................................................... 13  
+Counting event: ................................................................................................................ 13  
+
+--- PDF PAGE 2 ---
+ 
+ 
+Page 2 from 32  25/04/2014 
+Reset ................................................................................................................................. 14  
+LoopMode ........................................................................................................................ 14  
+Repetitor ........................................................................................................................... 14  
+Don’t print ........................................................................................................................ 14  
+Global counter .................................................................................................................. 14  
+COD Parameter list (Barcode parameter) ............................................................................ 15  
+Barcode type: .................................................................................................................... 15  
+Position of clear figure ..................................................................................................... 16  
+RPLFIG Parameter list ......................................................................................................... 17  
+RPLDAY Parameter list ....................................................................................................... 18  
+RPLMON Parameter list ...................................................................................................... 18  
+RPLYEAR Parameter list ..................................................................................................... 20  
+SHIFTS Parameter list   until LJScriptversion V1.6.0.0 .................................................... 20  
+SHIFTS Parameterliste   from  LJScriptversion V1.6.0.1 .................................................. 21  
+EXTTXT Parameter list ....................................................................................................... 21  
+TIME Parameter list ............................................................................................................. 22  
+Layout Format .................................................................................................................. 22  
+OBJ Parameter list (Object parameter) ................................................................................ 24  
+ID-number: ....................................................................................................................... 24  
+Position: ............................................................................................................................ 24  
+Ltype: ............................................................................................................................... 24  
+Fonts: ................................................................................................................................ 25  
+Printing text ...................................................................................................................... 27  
+Character gap .................................................................................................................... 27  
+Rotation, Mirror-inverted ................................................................................................. 27  
+Proportional: ..................................................................................................................... 27  
+Bold text: .......................................................................................................................... 27  
+Contrast print: ................................................................................................................... 27  
+Inverse: ............................................................................................................................. 27  
+Alternate: .......................................................................................................................... 27  
+Prompt-Field: ................................................................................................................... 27  
+PGJOB Parameter list (Batchjob) ........................................................................................ 28  
+ID-number: ....................................................................................................................... 28  
+Number of repeats: ........................................................................................................... 28  
+EXTSEL Parameter list (Extern Job Select) ........................................................................ 28  
+External applied number: ................................................................................................. 28  
+JOBORG Parameter list (Job organizer) .............................................................................. 29  
+ID-number: ....................................................................................................................... 29  
+Distance: ........................................................................................................................... 29 
+EXAMPLE for a Script: ....................................................................................................... 30  
+History ...................................................................................................................................... 31  
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+
+--- PDF PAGE 3 ---
+ 
+ 
+Page 3 from 32  25/04/2014 
+ 
+Language layout 
+The Script language LJScript is a language to describe complete print layouts for the 
+Leibinger-Jet 3.  
+LJScript uses only ASCII-characters and as control characters only Carriage Return (CR) 
+and Line Feed (LF).  
+Used are commands which have fixed relocated keywords. A parameter list follows. Further 
+more the following comments can be inserted.  
+Syntax: 
+% comment 
+KEYWORD [Parameter list] 
+KEYWORD [Parameter list]       % comment 
+KEYWORD [Parameter list] 
+ 
+Keywords are always written in capital letters.  
+The parameter list is specified in square brackets: [Parameter list] 
+Only one keyword is permitted per line. 
+ 
+The several parameters in the parameter list are separated by one ore more blanks, 
+tabulators (Tab, Hex 09) or Carriage Return (0x0D) and Line Feed (0x0A). 
+Lists and texts which occur in the parameter list are specified in parenthesis (). 
+A backslash \ is prepend of the following characters if they should be part of the text: 
+)    <     \     %    [   ]   results in:        \)      \<        \\        \%        \[      \] 
+Every element which is declarated refers to the last defined object.  
+Comments can be used. They always start with the percentage symbol % and end always at 
+the end of line (CR and LF). They cannot be in the comment.  
+If the parameters have a limit value MAXINT, the values margin of 32 Bit Integer is valid. It 
+goes from–2.147.483.648 up to +2.147.483.647 
+Floating point numbers are indicated with the decimal point. Power specifications do not 
+exist.  
+Time is indicated in hours (hh) and minutes (mm) and/or seconds (ss). Separators are 
+indicated in colons. Example: l: hh:mm:ss 
+ 
+Coordinate system 
+X is the transport direction. Units are always strokes 
+The 1. stroke has the X-coordinate X.0 
+Y is the direction in which the drops are deflected. Units are ink dots  
+The 1. ink dot is placed at the gutter tube and has the Y-coordinate Y.0 
+ 
+ 
+ 
+ 
+ 
+ 
+
+--- PDF PAGE 4 ---
+ 
+ 
+Page 4 from 32  25/04/2014 
+Keywords 
+Keywords Meaning 
+BEGINLJSCRIPT Indicates the beginning of a Script ( job list)  
+JLPAR Declares the job list parameter 
+  
+BEGINJOB Indicates the beginning of a job  
+JOBPAR Declares the job parameter 
+OBJ Declares object parameter 
+CNT Declares counter objects 
+COD Declares barcode objects 
+TIME Declares date-/time objects 
+SHIFTS Declares shift time objects 
+RPLDAY Declares replacements for weekdays of date o bjects 
+RPLMON Declares replacements for months of date obj ects  
+RPLYEAR Declares replacements for years of date obj ects  
+ENDJOB  Indicates the end of a job  
+  
+PGJOB Declares Batch Job List 
+JOBORG Declares job organizer list  
+EXTSEL Declares external job select list  
+ENDLJSCRIPT Indicates the end of a Script  
+Table 1: Keywords 
+
+--- PDF PAGE 5 ---
+ 
+ 
+Page 5 from 32  25/04/2014 
+Beginning of Script 
+Syntax: BEGINLJSCRIPT [Parameter list] 
+ 
+Every Script has to start with this keyword. 
+ 
+The parameter list contains only one text which has to have the version of the following 
+format: 
+(Va.b.c.d) 
+ 
+Meaning: 
+a=Generation 
+b=Upgradings /Changes 
+c=Bugfix-counter 
+d=Index for special functions 
+ 
+Further parameters can follow but they can only be used as comments.  
+ 
+ 
+End of Script 
+Syntax:  ENDLJSCRIPT [Parameter list] 
+ 
+Every Script has to end with this keyword.  
+The parameter list is not analyzed, can be also empty.  
+ 
+
+--- PDF PAGE 6 ---
+ 
+ 
+Page 6 from 32  25/04/2014 
+Layout of parameter lists  
+JLPAR parameter list (Job list parameter) 
+Syntax: JLPAR  [Parameter list] 
+ 
+The system parameters occur only once in the Script.  
+The parameter list contains the following parameters in this order:  
+ Values margin Unit 
+1 Print Height Y 0  ... 100  
+2 PrintGo-signal 0 - 2  
+3 PrintGo-Gate 0 - 2  
+4 Encoder-signal 0 - 3  
+5 Speed 1 – 1000 dm/min, (for int. Encoder-Signal) 
+6 Rotation 0  90  180  270 Degree, anticlockwise 
+7 Mirror-inverted 0   1  
+8 Encoder resolution 1 - 2000000000 pulse / m 
+9 Shifting 
+Change of date 
+00–23:0-59 hours:minutes 
+10 Backward Lock 0   1  
+11 Speed dependant 
+output 
+0 ... 1000 dm/min 
+Table 2: Declaration of the JobList-parameter 
+Print Height 
+This parameter adjusts the high-voltage at the deflection plates.  
+100 corresponds to the max. possible print height of the selected printing mode. 
+PrintGo Signal 
+PrintGo-Signal 
+Internal = 0 
+External Lo-Hi-edge = 1 
+External Hi-Lo-edge = 2 
+Table 3: PrintGo-Signal 
+PrintGo-Gate Signal 
+PrintGo-Gate 
+Function deactivated = 0 
+Hi-Active = 1 
+Lo-Active = 2 
+Table 4: PrintGo-Gate 
+ 
+PrintGo-Gate is an external input. With that you can block the external and internal PrintGo-
+signals.  
+Hi-Active:   
+The PrintGo-signals can only pass if the input is on Hi . 
+Lo-Active:   
+The PrintGo-signals can only pass if the input is on Lo. 
+ 
+ 
+
+--- PDF PAGE 7 ---
+ 
+ 
+Page 7 from 32  25/04/2014 
+Encoder signals 
+Encoder-Signal 
+Internal = 0 
+External, direction 1 (clockwise)  = 1 
+External, direction 2 (anticlockwise) = 2 
+External, both directions = 3 
+Table 5: Encoder-Signal 
+Rotation, mirror-inverted 
+The fitting position of the print head is adjusted here.  
+Mirror-inverted is a reflection by the Y-axis.  
+Encoder resolution 
+Is the resolution of the connected encoder in pulses/m.  
+Shifting Change of date  
+Usually the date is changed at midnight. With this parameter the time can be shifted by up to 
+23 h and 59 min. The hour- and minute specifications are separated by a colon.  
+Backward Lock 
+Is only reasonable if the Encoder signal is on external, direction 1 or direction 2.  
+Guarantees that the print will be continued at the correct position after a short operation 
+against the print direction.  
+ 
+Speed dependant output 
+When the speed (from the encoder) is increasing this value, the output "Speed 
+dependant output" will be switched to high signal. 
+It will be switched off when the speed is falling under 10% from this value. 
+From job version V01.06.00.10 the value is specified in decimeter/min so that 
+the resolution will be slightly larger. In the display the value appears in m/min, 
+but with a fractional point. 
+ 
+ 
+ 
+ 
+
+--- PDF PAGE 8 ---
+ 
+ 
+Page 8 from 32  25/04/2014 
+ 
+BEGINJOB parameter list: 
+Syntax: BEGINJOB [Parameter list] 
+ 
+Several jobs can be found in a Script.  
+Basically a job consists of congeries of objects.  
+The parameter list of BEGINJOB  has the following parameters in the following order: 
+Values margin Unit 
+ID-number 0 - 1023 
+Name (alphanumeric text) 
+Table 6: Parameter list of BEGINJOB 
+ 
+ID-number: 
+The identification-number can be released.  
+For double numbers only the last number is considered.  
+ 
+ENDJOB parameter list 
+The parameter list of ENDJOB is empty.  
+
+--- PDF PAGE 9 ---
+ 
+ 
+Page 9 from 32  25/04/2014 
+ 
+JOBPAR parameter list (Job parameter) 
+Syntax: JOBPAR  [Parameter list] 
+ 
+Values margin  Unit  
+1 PrintGo-delay 0 - MAXINT µm  
+2 PG-repetition 0 - 65535   
+3 PG-distance 0 - MAXINT µm, only for PG-
+repetition. > 0: 
+ 
+4 Stroke distance 0 – MAXINT µm  
+5 Print Mode 0-10   
+ optional:    
+6 Flight time compensation 0–MAXINT   
+7 Sensor monitoring 0   1 Leave that 0 !  
+8 Stroke monitoring 0   1   
+9 PrintGo monitoring 0   1   
+10 PGHoldOff 0-MAXINT   
+11 IdentNr CameraJob (-1) – 2^31   
+12 CameraJob Name (alphanumeric text)   
+13 Max. products between LJ3 
+and Camera 
+1 - 1000   
+14 Product offset between LJ3 
+and Camera 
+   
+15 Cameratrigger-delay 0-MAXINT µm  
+16 Print stop interrupts print-
+out immediately 
+0    1   
+17 Indexcounter of previous 
+camera job data 
+0 - 65535   
+18 Plotmode 0   1   
+Table 7: Declaration of the job-parameters  
+ 
+PrintGo-delay 
+The print (job) starts only after this delay.  
+The unit is µm. 
+PG-repetition  
+n = 0: No repetition, that means it is printed once  per PrintGo-signal.  
+1 <= n <= 65534: Number of prints= n+1 
+n = 65535: Number of prints= endless 
+ 
+PG-distance 
+If PG repetition>1 has been selected, the distance between two prints is indicated in µm with 
+this parameter.  
+Stroke distance 
+Distance between two strokes in µm. This value assigns basically the font width.  
+
+--- PDF PAGE 10 ---
+ 
+ 
+Page 10 from 32  25/04/2014 
+Print Mode 
+0 = 32 Dot High Quality 
+1 = 32 Dot Fast 
+2 = 32 Dot High Speed 
+3 = 24 Dot High Quality 
+4 = 24 Dot Fast 
+5 = 24 Dot High Speed 
+6 = 24 Dot High Speed Barcode 
+7 = 16 Dot Fast 
+8 = 16 Dot Speed 
+9 = 12 Dot High Speed 
+10 = 5 Dot High Speed 
+11 = 2 Lines High Speed 
+ 
+Until V1.6.0.3 
+0 = 32 Dot High Quality 
+1 = 32 Dot Fast 
+2 = 32 Dot High Speed 
+3 = 24 Dot High Quality 
+4 = 24 Dot Fast 
+5 = 24 Dot High Speed 
+6 = 24 Dot High Speed Barcode 
+7 = 16 Dot Fast 
+8 = 12 Dot High Speed 
+9 = 5 Dot High Speed 
+10 = 2 Lines High Speed 
+ 
+Until V1.04: 
+0 = 32 dot high quality 
+1 = 24 dot high quality 
+2 = 16 dot high speed 
+3 = 7 dot high speed 
+4 = 5 dot high speed 
+5 = 2 Lines High Speed 
+ 
+Flight time compensation 
+ 
+ 
+ 
+ 
+Is this value higher than zero, the PrintGo-delay is reduced depending on the speed. Due to 
+this you can obtain that the print is always at the same place even at different speeds. If the 
+value is 0, then the function is turned off.  
+ 
+Sensor Monitoring 
+Turned off = 0 
+Turned on = 1 
+With this switch 3 monitoring (controls) will be activated: 
+1. PrintGo Sensor 
+For this monitoring a 2. PrintGo Sensor will be used. This must be connected to the PrintGo 
+Gate input. Both sensors must be PNP sensors. 
+Turned off = 0 
+Turned on > 0 
+
+--- PDF PAGE 11 ---
+ 
+ 
+Page 11 from 32  25/04/2014 
+The sensors must be adjusted in this way, that the signals of both sensors overlap for a short 
+time. 
+An error will be generated, when one of the 2 sensors has not switched, when the other has 
+switched on and off. 
+ 
+Monitoring 2 and 3: 
+An error will be generated too, when there is a PrintGo signal and 
+- the Production speed is 0 (no encoder pulses, monitoring 2)  or 
+- the print is not started (monitoring 3). 
+ 
+ 
+Stroke monitoring 
+Turned off = 0 
+Turned on = 1 
+ 
+If the stroke frequency is higher than the Leibinger-Jet possible maximum stroke frequency, 
+an error is caused. The print will not be stopped.  
+ 
+PrintGo monitoring 
+Turned off = 0 
+Turned off = 1 
+ 
+If a further PrintGo-signal appears during the delay or during the print, an error is caused.  
+The print will be not stopped. 
+ 
+PGHoldOff 
+Value to get a minimum distance of print to print (e.g. for additional printmarks) that means if 
+additional PrintGo-signals appear within the holdoff distance, they will be ignored.  
+IdentNr CameraJob 
+-1 = means, that no camera will be used.  
+0 = means, that the Ljet3 job has no allocation to a configurated job on the camera  
+The Ids (1 – 2^31) will be generated on the camera host and are downloaded from the Ljet3. 
+ 
+CameraJob Name 
+The name will be generated on the camera host and downloaded from the LJet3. 
+ 
+Max. products between LJ3 and camera 
+Control value (Trigger control): Maximum number of products, which are allowed between 
+print head and the camera. 
+Product offset between LJ3 and camera 
+Number of products as a fix value, which are between the current printed product and the 
+camera.  
+
+--- PDF PAGE 12 ---
+ 
+ 
+Page 12 from 32  25/04/2014 
+Cameratrigger-delay 
+The trigger signal for the connected camera will be delayed with this value. 
+The unit is µm. 
+ 
+Print stop interrupts print-out immediately 
+Can have the value 0 or 1: 
+0: The print stop will be done after the Text-End. The result is that the Text will 
+not be truncated. 
+1: The print stop will be done immediately 
+ 
+Indexcounter of previous camera job data 
+If no Camera using, the value has to be 0. 
+The index is always counted by updating a camera job. This is an information for the 
+JETvisio program on the PC. The Index will be compare with the actual loaded job on 
+the JETvisio program. If it is higher, the job will be also updated on the PC. 
+ 
+Plotmode 
+In the Plotmode the Leibinger-Jet prints always only the first stroke (Stroke 1). 
+The Plotmode will be stopped with a Printstop or a change of the Job. 
+ 
+Attention: In the Plotmode the Leibinger-Jet is not able to make a phasing. 
+ 
+
+--- PDF PAGE 13 ---
+ 
+ 
+Page 13 from 32  25/04/2014 
+ 
+CNT parameter list (Counter parameter) 
+Syntax: CNT [Parameter list] 
+ 
+Every counter which is declared refers to the last defined object. The counter is placed at the 
+position where you can find the object {c} in the text.  
+ 
+The parameter list contains the following parameters in this order:  
+  Values margin 
+1 Number of digits 1 - 10 
+2 Start value 0 – 9.999.999.999 
+3 Initial value 0 – 9.999.999.999 
+4 End value 0 – 9.999.999.999 
+5 Increment -100 ... +100 
+6 Repetitions 1 - 101 
+7 Leading zeros 0   1 
+8 Counting event 0 - 2 
+9 Counter basis 10 (currently only 10  
+permitted ) 
+10 Reset 0 - 2 
+11 LoopMode 0  1  2 
+12 Repetitor 0 - 100 
+13 Don’t print 0  1 
+14 Global counter 0  1 
+Table 8: Declaration of counter 
+ 
+Start value: 
+This value the counter uses when he reached the end value. 
+ 
+Initialisation value: 
+This value the counter uses after a jobload or a counter reset.  
+ 
+End value: 
+When the counter reached this value, he begins with the start value. 
+Increment: 
+This value will be added to the counter value when the count event happened. 
+Repetitions: 
+Repetition of the actual counter value.  
+With a repetition of 3 the result can be like this: 1 1 1 2 2 2 3 3 3 ... 
+ 
+Counting event: 
+After PrintGo = 0 
+After PrintActive = 1 
+
+--- PDF PAGE 14 ---
+ 
+ 
+Page 14 from 32  25/04/2014 
+With ext. counting input = 2 
+ 
+After PrintGo: 
+It is counted after every PrintGo signal irrespectively of if a print has been generated or not 
+(similar to MeterGo - funktion at LJ2)  
+ 
+After PrintActive: 
+It is counted further after every started print (standard).  
+ 
+With ext. Counting input 
+It is counted further with every rising edge at the X4.2 input.  
+ 
+Reset  
+Manual = 0 
+PC = 1 
+External signal = 2 
+ 
+Manually: 
+Counter is reset by manual operation or by command from external interface. 
+ 
+PC  
+Counter is reset synchronously to the product counter, that means if it is reset to 0 by the 
+operator, also the object counter is reset.  
+ 
+External signal  
+Counter is reset to X4.1 after rising edge.  
+ 
+LoopMode  
+Print Stop at the end = 0 
+Loop = 1 
+Up-/Down = 2 (Not supported by GUI)  
+Repetitor  
+Actual value of the done repetitions. 
+Don’t print 
+When the counter is used for a control function, it can be, that he should not be printed. Then 
+this value is set to 1. 
+ 
+Global counter 
+When this value is set to 1, this counter is a global counter. In the Jet3 exists one global 
+counter. Its value can be accessed over this button. 
+ 
+ 
+
+--- PDF PAGE 15 ---
+ 
+ 
+Page 15 from 32  25/04/2014 
+ 
+COD Parameter list (Barcode parameter) 
+Syntax: COD [Parameter list] 
+ 
+The parameter list contains the following parameters in this order:  
+ Values margin Unit 
+1 Barcode type 1 - 10  
+2 Bar width 1 1 – 10 Stroke 
+3 Bar width 2 1 – 10 Stroke 
+4 Bar width 3 1 – 10 Stroke 
+5 Bar width 4 1 – 10 Stroke 
+6 Gap width 1 1 – 10 Stroke 
+7 Gap width 2 1 – 10 Stroke 
+8 Gap width 3 1 – 10 Stroke 
+9 Gap width 4 1 – 10 Stroke 
+10 Character gap (ICG) 1 – 10 Stroke 
+11 Barcode height 1 – 32 Ink dots 
+12 Font for clear figure (Font name)  
+13 Position of clear figure 0 – 4  
+14 Calc Check digit 0 - 1 Not used 
+15 Invers 0 . 1  
+Table 9: Declaration of barcode 
+ 
+Barcode type:  
+Code39  = 1 
+Code2/5 = 2 
+EAN8 = 3 
+EAN13 = 4 
+UPC A12 = 5 
+UPC E 8 = 6 
+128b = 7 
+128c = 8 
+Postnet = 9 
+Datamatrix ECC200 square 
+EAN128 
+= 10 
+= 11 
+EAN/ECC200 Datamatrix square = 12 
+Datamatrix ECC200 rectangular 
+EAN/ECC200 Datamatrix rectangular 
+USPS 4CB 
+QR Code 
+PPN Code square 
+PPN Code rectangula 
+= 13 
+= 14 
+= 15 
+= 16 
+= 17 
+= 18 
+ 
+Note: 
+At the ECC200 the dot- and gap  size can be set to 1, 2 or 3. To do this use the parameter 
+Bar width 1. 
+ 
+This control character can contain the types 11, 12 and 14: 
+{f} = FNC1. This will be replaced in the code by the byte HexE8(Dez232). 
+ 
+
+--- PDF PAGE 16 ---
+ 
+ 
+Page 16 from 32  25/04/2014 
+This control characters can contain the types 17 and 18: 
+{g} = Field Separator Gs. Will be replaced in the code by the byte Dez29 
+The header and the trailer will be added automatically by the Jet3. 
+Position of clear figure 
+No = 0 
+below = 1 
+behind = 2 
+in front = 3 
+above = 4 
+ 
+ 
+Invers: 
+ 
+The barcode will be printed invers and the clear figure not. 
+ 
+ 
+Invers OBJ Invers COD Meaning 
+0 0 Normal print 
+0 1 Clear figure normal, BC invers 
+1 0 Clear figure invers, BC invers 
+1 1 Clear figure invers, BC normal 
+ 
+ 
+ 
+
+--- PDF PAGE 17 ---
+ 
+ 
+Page 17 from 32  25/04/2014 
+ 
+RPLFIG Parameter list   
+Syntax: RPLFIG [Parameter list] 
+ 
+The figures of the object are replaced by another character. These replacements refer to the 
+counter fields and the time fields hour, minute, date and calender week.  
+The parameter list contains the following substitute characters in this order:  
+Values margin Unit 
+Text field with the following character string   
+Substitute character for 0 
+  
+All available characters ASCII-Code as 
+Dec.number 
+Substitute character for 1.  do.  
+Substitute character for 2 do.  
+Substitute character for 3 
+  
+do.  
+Substitute character for 4 
+  
+do.  
+Substitute character for 5 
+  
+do.  
+Substitute character for 6 
+  
+do.  
+Substitute character for 7 
+  
+do.  
+Substitute character for 8 
+  
+do.  
+Substitute character for 9 do.  
+Substitute character for A do. //due to reasons of 
+compatibility for   
+Substitute character for B do. // possibly 
+(Hexadecimal counter) 
+Substitute character for C do.  
+Substitute character for D do.  
+Substitute character for E do.  
+Substitute character for F do.  
+Table 10: Declaration of replacements  
+ 
+
+--- PDF PAGE 18 ---
+ 
+ 
+Page 18 from 32  25/04/2014 
+RPLDAY Parameter list  
+Syntax: RPLDAY [Parameter list] 
+ 
+The weekdays of the date object are replaced by any printing text.  
+The parameter list contains the substitute texts in this order:  
+ 
+Values margin Unit 
+Substitute text for Monday All available characters  Text 
+Substitute text for Tuesday All available character s Text 
+Substitute text for 
+Wednesday 
+All available characters Text 
+Substitute text for Thursday  All available characters Text 
+Substitute text for Friday All available characters  Text 
+Substitute text for Saturday All available characte rs Text 
+Substitute text for Sunday All available characters  Text 
+Table 11: Substitute texts for weekdays 
+ 
+ 
+RPLMON Parameter list  
+Syntax: RPLMON [Parameter list] 
+ 
+The months of a date object are replaced by any printing text.  
+The parameter list contains the substitute texts in this order:  
+ 
+Values margin Unit 
+Substitute text for January  All available characte rs Text 
+Substitute text for February  All available characters Text 
+Substitute text for March All available characaters  Text 
+Substitute text for April All available characters Text 
+Substitute text for May All available characters Te xt 
+Substitute text for June All available characters T ext 
+Substitute text for July All available characters T ext 
+Substitute text for August All available characters  Text 
+Substitute text for 
+September 
+All available characters Text 
+Substitute text for October All available character s Text 
+Substitute text for 
+November 
+All available characters Text 
+Substitute text for 
+December 
+All available characters Text 
+Table 12: Substitute texts for months 
+ 
+
+--- PDF PAGE 19 ---
+ 
+ 
+Page 19 from 32  25/04/2014 
+RPLMDAY Parameter list 
+Syntax: RPLMDAY [Parameter list] (as of scriptversion V01.06.00.12)  
+ 
+The days (1…31) of a date object are replaced by any printing text.  
+The parameter list contains the substitute texts in this order:  
+ 
+Wertebereich Einheit  
+Substitute text for 01 All available characters  Text  
+Substitute text for 02 All available characters  Text  
+Substitute text for 03 All available characters  Text  
+Substitute text for 04 All available characters  Text  
+Substitute text for 05 All available characters  Text  
+........... ...... .....  
+Substitute text for 31 All available characters  Text  
+Table 12.1: Substitute texts for days 
+ 
+Example script with replacements from months and days: 
+ 
+BEGINLJSCRIPT [(V01.06.00.12)] 
+JLPAR [90 0 0 3 60 0 0 10000 00:00 0 7000] 
+BEGINJOB [ 0 () ] 
+JOBPAR [ 0 0 0 250 0 0 0 1 1 0 -1 () 1 0 55000 1 0] 
+OBJ [1 2 24 0 (ISO1_7X5)  ({t}) 1 0 0 0 0 1 0 0 0 0 0 0 ()  () 0 0 () ] 
+TIME [ (dd.mm.yyyy) 0 1 0] 
+RPLDAY [ (MON)  (TUE)  (WED)  (THU)  (FRI)  (SAT)  (SUN) ] 
+RPLMON [ (01)  (02)  (03)  (04)  (05)  (06)  (07)  (08)  (09)  (10)  (11)  (12) ] 
+RPLYEAR [ 2013 (2013)  (2014)  (2015)  (2016)  (2017)  (2018)  (2019)  (2020)  (2021)  (2022)  (2023)  (2024)  (2025)  (2026)  
+(2027)  (2028)  (2029)  (2030)  (2031) ] 
+OBJ [2 2 13 0 (ISO1_7X5)  ({t}) 1 0 0 0 0 1 0 0 0 0 0 0 ()  () 0 0 () ] 
+TIME [ (dd.mm.yyyy) 0 1 0] 
+RPLDAY [ (MON)  (TUE)  (WED)  (THU)  (FRI)  (SAT)  (SUN) ] 
+RPLMON [ (01)  (02)  (03)  (replace_month)  (05)  (06)  (07)  (08)  (09)  (10)  (11)  (12) ] 
+RPLYEAR [ 2013 (2013)  (2014)  (2015)  (2016)  (2017)  (2018)  (2019)  (2020)  (2021)  (2022)  (2023)  (2024)  (2025)  (2026)  
+(2027)  (2028)  (2029)  (2030)  (2031) ] 
+RPLMDAY [ (01)  (02)  (03)  (04)  (05)  (06)  (07)  (08)  (09)  (10)  (11)  (12)  (13)  (14)  (15)  (16)  (17)  (18)  (19)  (20)  (21)  (22)  
+(23)  (24)  (25)  (26)  (27)  (28)  (29)  (30)  (31) ] 
+OBJ [3 2 2 0 (ISO1_7X5)  ({t}) 1 0 0 0 0 1 0 0 0 0 0 0 ()  () 0 0 () ] 
+TIME [ (dd.mm.yyyy) 0 1 0] 
+RPLDAY [ (MON)  (TUE)  (WED)  (THU)  (FRI)  (SAT)  (SUN) ] 
+RPLMON [ (01)  (02)  (03)  (04)  (05)  (06)  (07)  (08)  (09)  (10)  (11)  (12) ] 
+RPLYEAR [ 2013 (2013)  (2014)  (2015)  (2016)  (2017)  (2018)  (2019)  (2020)  (2021)  (2022)  (2023)  (2024)  (2025)  (2026)  
+(2027)  (2028)  (2029)  (2030)  (2031) ] 
+RPLMDAY [ (01)  (02)  (03)  (04)  (05)  (06)  (07)  (08)  (09)  (replace_day)  (11)  (12)  (13)  (14)  (15)  (16)  (17)  (18)  (19)  (20)  
+(21)  (22)  (23)  (24)  (25)  (26)  (27)  (28)  (29)  (30)  (31) ] 
+ENDJOB [] 
+ENDLJSCRIPT [] 
+ 
+Result of print: 
+ 
+ 
+
+--- PDF PAGE 20 ---
+ 
+ 
+Page 20 from 32  25/04/2014 
+RPLYEAR Parameter list  
+Syntax: RPLYEAR [Parameter list] 
+ 
+The years of a date object are replaced by any printing text.  
+The parameter list contains the substitute texts in this order:  
+ 
+Values margin  Unit  
+Basis year (e.g.) 2000 Year  
+Substitute text for basis year All available characters  Text  
+Substitute text for basis year+1 All available characters  Text  
+Substitute text for basis year+2 All avai lable characters Text  
+Substitute text for basis year+3 All available characters  Text  
+… … …  
+Substitue text for basis year+18 All available characters  Text  
+Table 13: Substitute texts for years 
+ 
+ 
+SHIFTS Parameter list  until LJScriptversion V1.6.0.0 
+Syntax: SHIFTS  [Parameter list] 
+5 shifts can be administrated. The starting time and the printing text are defined here for 
+every of these 5 shifts.  
+The parameter list contains the following parameters in this order: 
+ 
+Name of the Parameter Content Unit 
+Starting time shift 1 00:00  -  23:59 hh:mm 
+Starting time shift 2 00:00  -  23:59 hh:mm 
+Starting time shift 3 00:00  -  23:59 hh:mm 
+Starting time shift 4 00:00  -  23:59 hh:mm 
+Starting time shift 5 00:00  -  23:59 hh:mm 
+Printing text for shift 1 (Text)  
+Printing text for shift 2 (Text)  
+Printing text for shift 3 (Text)  
+Printing text for shift 4 (Text)  
+Printing text for shift 5 (Text)  
+Table 14: Declaration of shifts  
+ 
+
+--- PDF PAGE 21 ---
+ 
+ 
+Page 21 from 32  25/04/2014 
+ 
+SHIFTS Parameterliste  from  LJScriptversion V1.6.0.1 
+Syntax: SHIFTS  [Parameterliste] 
+Until 24 shifts can be administrated. The starting time and the printing text are defined here 
+for every of these shifts.  
+The parameter list contains the following parameters in this order: 
+ 
+Name of the Parameter Content Unit 
+Number of shifts 1 … 24  
+Starting time shift 1 00:00  -  23:59 hh:mm 
+Starting time shift 2 00:00  -  23:59 hh:mm 
+Starting time shift 3 00:00  -  23:59 hh:mm 
+… 00:00  -  23:59 hh:mm 
+Starting time shift n 00:00  -  23:59 hh:mm 
+Printing text for shift 1 (Text)  
+Printing text for shift 2 (Text)  
+Printing text for shift 3 (Text)  
+… (Text)  
+Printing text for shift n (Text)  
+Table 14: Declaration of shifts 
+1 <= n <= 24 
+ 
+ 
+ 
+EXTTXT Parameter list  
+Syntax: EXTTXT[Parameter list] 
+ 
+The before defined object is defined as ExternText. The external text is then fitted at the 
+place where {e} is inserted in the text string. 
+ 
+The parameter list contains the following parameters in this order:  
+ 
+Values margin Unit 
+1 Length 1-100 
+2 Placeholder (Text characters) 
+3 Field number 0=ExtText,  
+1…x Field number Mailmode 
+ 
+4 In ExtText: Character offset 
+In Mail-Mode: Not used 
+0-255 
+5 Check double prints 
+In Mail-Mode: Not used 
+0, 1 
+Table 15: Declaration of extern text parameter list 
+ 
+By the field number you can decide between an Extern-Text-Variable and a „Mail“-Variable. 
+0=ExtText-Variable, 1…x=Mail-Variable, the value corresponds then to the field number.  
+Extern-Text-Variable: 
+The number of placeholders defines the number of external characters for this object. 
+The character offset defines from which character of the external text this object  will be filled 
+with characters.  
+
+--- PDF PAGE 22 ---
+ 
+ 
+Page 22 from 32  25/04/2014 
+The LJ3 calculates independantly the required characters for the actual loaded job. After he 
+received completely the last character all will be inserted automatically into to print text. 
+To calculate this there will be built the sum for each object from the character offset and the 
+placeholders. The largest sum is the value for required characters of the loaded job. 
+ 
+In the Extern Text Mode the function “Check double prints” can be used. When after a print 
+go signal there is not one or more received external text, the print will be stopped and an 
+error message is generated. 
+ 
+TIME Parameter list  
+Syntax: TIME [Parameter list] 
+ 
+The time and date functions which are referenced in the text string of the object are 
+formatted by this declaration. The date is then fitted at the place where {t} is inserted in the 
+text string. 
+ 
+The parameter list contains the following parameters in this order:  
+ 
+Values margin Unit 
+1 Format (Text) 
+2 Expiry offset  days Days (0 – 30000) 
+3 Leading zeros 0   1 
+4 Expiry offset months Months (0 – 1000) 
+5 Special replacements for hours and 
+minutes 
+0   1 
+Table 16: Declaration of time-variables 
+Layout Format  
+d Day X 
+m Month  
+y Year 4 digits 
+Y Year X 
+H Hour X 
+M Minute X 
+S Second X 
+w Weekday  
+j Julian date X 
+c 
+f 
+Calender week 
+F2897 
+X 
+ 
+If this variable is listed several times the complete passage will be replaced by the 
+substitution of the value.  
+For the variables which are indicated with „X“ the inserted value is always displayed double-
+digit (if applicable with leading „0“), if the variable is set twice.  
+Starting from Scriptversion V1.6.0.2 the leading zeros will be set by parameter 3. 
+0 = without leading zeros 
+1 = with leading zeros 
+For the other variables the length is defined by the replacements.  
+ 
+F2897: 
+The julian date and the 2 digits year are concatenated and from this up to 5 digits decimal 
+value will be calculated a 3 digits value in the base 62 (with left-hand zeros0).  
+
+--- PDF PAGE 23 ---
+ 
+ 
+Page 23 from 32  25/04/2014 
+ 
+Starting from Scriptversion V1.6.0.9 
+it is possible to choose the expiry offset between days or months. 
+0 = disabled (no offset) 
+1 – maximum value = enabled 
+If parameter 2 (expiry offset days) > 0, it is important to set parameter 4 (expiry offset month) 
+to zero. 
+Otherwise, if parameter 4 (expiry offset months) > 0, it is important to set parameter 2 (expiry 
+offset days) to zero. 
+ 
+Starting from Scriptversion V01.06.00.13 
+With parameter 5 it is possible to choose special replacements for hours and minutes. 
+0 = disabled (no special replacements) 
+1 = hours and minutes will be replaced like following table: 
+hours 00 01 02 03 04 05  06 07 08 09 10 11 12 13 14 15 16 17 18 19 20 21 22 23 
+ A B C D E F G H J K L M N P Q R S T U V W  X Y Z 
+ 
+Minutes 0 - 9 10 - 19 20 – 29 30 - 39 40 - 49 50 - 59 
+ a b c d e f 
+ 
+Example script with special replacements: 
+ 
+BEGINLJSCRIPT [(V01.06.00.14)] 
+JLPAR [90 1 0 3 30 0 0 50000 00:00 0 7000] 
+BEGINJOB [ 0 () ] 
+JOBPAR [ 0 0 0 300 0 0 0 1 1 0 -1 () 1 0 55000 1 0] 
+OBJ [1 1 0 0 (ISO1_7X5)  ({t}) 1 0 0 0 0 1 0 0 0 0 0 0 ()  () 0 0 () ] 
+TIME [ (HH:MM) 0 1 0 0] 
+RPLDAY [ (MON)  (TUE)  (WED)  (THU)  (FRI)  (SAT)  (SUN) ] 
+RPLMON [ (01)  (02)  (03)  (04)  (05)  (06)  (07)  (08)  (09)  (10)  (11)  (12) ] 
+RPLYEAR [ 2014 (2014)  (2015)  (2016)  (2017)  (2018)  (2019)  (2020)  (2021)  (2022)  (2023)  (2024)  (2025)  (2026)  (2027)  
+(2028)  (2029)  (2030)  (2031)  (2032) ] 
+OBJ [2 1 14 0 (ISO1_7X5)  ({t}) 1 0 0 0 0 1 0 0 0 0 0 0 ()  () 0 0 () ] 
+TIME [ (HH:MM) 0 1 0 1] 
+RPLDAY [ (MON)  (TUE)  (WED)  (THU)  (FRI)  (SAT)  (SUN) ] 
+RPLMON [ (01)  (02)  (03)  (04)  (05)  (06)  (07)  (08)  (09)  (10)  (11)  (12) ] 
+RPLYEAR [ 2014 (2014)  (2015)  (2016)  (2017)  (2018)  (2019)  (2020)  (2021)  (2022)  (2023)  (2024)  (2025)  (2026)  (2027)  
+(2028)  (2029)  (2030)  (2031)  (2032) ] 
+ENDJOB [] 
+ENDLJSCRIPT [] 
+ 
+Result of print: 
+ 
+ 
+
+--- PDF PAGE 24 ---
+ 
+ 
+Page 24 from 32  25/04/2014 
+ 
+OBJ Parameter list (Object parameter) 
+Syntax: OBJ [Parameter list] 
+ 
+An object is the smallest unit in the description of a print.  
+The parameter list contains the following parameters in this order:  
+ 
+Values margin Unit 
+1 ID-number 1 - 32  
+2 Position x 0 - 19999 Strokes 
+3 Position y 0 - 31 Ink dots 
+4 LType 0, 1 Language type 
+5 Font (Font name)  
+6 Printing text (Text) ASCII / Unicode, determinati on by 
+Font 
+ optionally:   
+7 Character gap 0 – 7 Strokes 
+8 Reserve 0  Leave it 0 
+9 Reserve 0 Leave it 0 
+10 Rotation 0  90  180  270 Degree, anticlockwise 
+11 Mirror-inverted 0   1  
+12 Proportional 0   1  
+13 Bold text 0 - 7  
+14 Contrast print 0 - 7  
+15 Inverse  0   1  
+16 Alternating 0   1  
+17 Camera field 0 –2  Only two camerafields per job , 
+otherwise zero 
+18 Camera teach mode 0 –255 Only in text- and exter n text 
+objects, otherwise zero 
+19 Camera teach text (Text) Only in text- and exter n text 
+objects, otherwise empty string 
+20 Keyboardname (Text) Language of your Keyboard 
+21 Counter-dependent 0 - 32 Counter ID-No. 
+22 Prompt-Field max. 
+sign 
+max. Length of 
+each object 
+Prompt-Field Max character from 
+the edited field 
+23 Prompt-Field name (Text) max. 40 sign  Users text for each Prompt-Field 
+Table 17: Declaration of objects 
+ID-number: 
+The identification-numbers can be assigned in any order.  
+For double numbers only the last one is considered.  
+Position:  
+The position of an object refers to the position of the job which calls this object. If the object 
+is linked, the position x refers to the end of the previous object.  
+Ltype: 
+For language specific handling of textes  
+0 = Standard 
+
+--- PDF PAGE 25 ---
+ 
+ 
+Page 25 from 32  25/04/2014 
+1 = Arabic 
+ 
+Fonts: 
+Every font is only identified by its name. Unicode fonts have the sign ~ before the font name. 
+The LJ3 has a number of fixed available fonts.  
+Fonts can be downloaded or also deleted.  
+All fonts are Bitmap Fonts. 
+ 
+If the character string ($CODE)  is entered for the font, the object is started as barcode object 
+which has to be defined by a further element COD […]. 
+ 
+If the character string ($GRAFIC)  is entered, the object is started as graphic object and the 
+graphic in the printint text has to be defined as described below.  
+ 
+ 
+ 
+ 
+Printing text for the function graphic 
+The printing text has 3 parameters. 
+(Graphic height Graphic width Graphic)   Separation character is a blank 
+ 
+Values margin Unit 
+Graphic height 1 – 32 Ink dots 
+Graphic width 1…20000 Ink dots (Strokes) 
+Graphic 0...9    A...F    Bit coded as hex number i n 
+ASCII 
+Table 18: Printing text for the function graphic 
+ 
+Layout of the bit coded graphic: 
+One bit is used per pixel so that 8 bits can be saved in one byte.  
+Up to 4 Hex-Bytes or 8 ASCII-Bytes can be needed for one stroke. The actual amount of 
+bytes per stroke depends on the graphic height. If the graphic is e.g. 17 dots high, 3 Hex-
+Bytes are used per stroke. .  
+ 
+Graphic: 
+Byte 1 Stroke 1 
+Byte 2 
+... 
+Byte n 
+Byte n+1 Stroke 2 
+Byte n+2 
+... 
+Byte 2*n 
+Byte 2*n+1 Stroke 3 
+Byte 2*n+2 
+… 
+n = Amount of bytes per stroke 
+ 
+Pixel Y.1 reserves Bit 0 of the first Hexbyte.  
+Pixel Y.2 reserves Bit 1 of the first Hexbyte. 
+… 
+
+--- PDF PAGE 26 ---
+ 
+ 
+Page 26 from 32  25/04/2014 
+Pixel Y.8 reserves Bit 7 of the first Hexbyte. 
+Pixel Y.9 reserves Bit 0 of the second Hexbyte. 
+… 
+As the graphic is transfered in ASCII-characters, two ASCII-Bytes are used for one Hex-Byte. 
+ 
+Example for graphic: 
+(12  4  FF0F01080108FF0F) 
+ 
+This graphic is 12 dots high, that means n = 2 
+X.1 (Stroke 1): All points Y.1..12 are set 
+X.2 (Stroke 2): Point Y.1 and point Y.12 are set 
+X.3 (Stroke 3): Point Y.1 and point Y.12 are set 
+X.4 (Stroke 4): All points Y.1..12 are set 
+ 
+This graphic shows a rectangle. 
+ 
+
+--- PDF PAGE 27 ---
+ 
+ 
+Page 27 from 32  25/04/2014 
+Printing text 
+The text which is shown in the parenthesis is printed. The parenthesis will be not printed.  
+Character gap 
+Shows the distance between the several characters. Default value is 1.  
+Rotation, Mirror-inverted 
+Every object can be rotated/mirrored.  
+Mirror-inverted is a reflection by the Y-axis. 
+Proportional: 
+Every font can be printed proportional or not proportional. In principle the fonts are applied 
+proportional.  
+For non-proportional print the RIP (printer) inserts empty strokes up to the maximum 
+character width. They will be inserted that the character is placed centered.  
+User-specific graphics are stored in one or more special fonts.  
+Bold text: 
+Every stroke is printed as often as given by the indicated number, but every stroke is printed 
+separately. The character width increases accordingly. The bold text has no influence on the 
+maximum printing speed.  
+Contrast print: 
+Every stroke is printed as often as given by the indicated number, but the additional strokes 
+are printed on top of the previous stroke. The character width does not increase, but the 
+maximum printing speed reduces.  
+This parameter will be taken over automatically to all objects, which are located in this X-
+area. The highest contrast print is carried out.  
+Inverse: 
+All pixels are inverted.  
+An ink dot will not become an ink gap. 
+an ink gap dot will become an ink dot. 
+If required an additional frame is drawn around the object (e.g. for texts, special barcode 
+types)  
+ 
+Alternate: 
+After every PrintGo the print it is turned by 180°.  
+Prompt-Field: 
+The prompt-field function can only use in following objects (with limitations): 
+- Text-Object (text content is editable) 
+- Barcode-Object (text content is editable) 
+- Counter-Object (counter end value is editable) 
+- Date-Object (only editable, if declared as expira tion date) 
+Construct: 
+Parameter 22 describes the maximum length of the editable content 
+Parameter 23 describes the name in plain writing of the prompt field. 
+
+--- PDF PAGE 28 ---
+ 
+ 
+Page 28 from 32  25/04/2014 
+ 
+PGJOB Parameter list (Batchjob) 
+Syntax: PGJOB [Parameter list] 
+ 
+Every PrintGo is assigned to a job.  
+The parameter list contains the following parameters in this order:  
+ 
+Values margin Unit 
+ID-No. 1 - 99  
+Number Repeats 0 – 99.999.999  0 = print only once 
+Job-ID-No. Available jobs  
+Table 19: PGJOb parameter list 
+ 
+If you are working with PGJOB, the call of EXTSEL and JOBORG (see below) is not 
+permitted.  
+ID-number: 
+These numbers are allocated in ascending order to process them consecutively. The number 
+has to start with 1 and has to be continuously without any gap.  
+Number of repeats: 
+Number of repetitions of the jobs which are indicated with the job-ID-number.  
+For 0 it is printed only once (no repetitions).  
+ 
+Job-ID-No: 
+ID No of the assigned and available jobs (see ID-number for BEGINJOB).  
+ 
+EXTSEL Parameter list (Extern Job Select) 
+Syntax: EXTSEL [Parameter list] 
+ 
+Via digital inputs you can select a job which is printed with the next Print Go.  
+If you work with EXTSEL the call with PGJBO and JOBORG is not permitted.  
+The parameter list contains the following parameters in this order:  
+ 
+Values margin 
+External applied number 0 - 1023     x   X   
+Job-ID-No Available Job-No. 
+Table 20: Declaration of the external inputs for job selection 
+External applied number: 
+With 10 digital input signals you can apply the numbers 0 up to 1023.  
+Every number which can occur should be assigned to a job with this command. The job 
+which is assigned to the external number X is printed. If numbers are applied for which no job 
+is declared the previous Job will be printed again. 
+ 
+ 
+Job-ID-No: 
+ID No of the assigned and available jobs (see ID-number for BEGINJOB) 
+
+--- PDF PAGE 29 ---
+ 
+ 
+Page 29 from 32  25/04/2014 
+ 
+JOBORG Parameter list (Job organizer) 
+Syntax: JOBORG [Parameter list] 
+ 
+After a PrintGo the listed jobs are printed in the given distances.  
+The parameter list contains the following parameters in this order:  
+ 
+Values margin Unit 
+ID-No 1 - 99  
+Distance 0 - 999999   µm, 0=directly after previous  job 
+Job-ID-No. Available jobs  
+Table 21: Allocation of job-organizer 
+ 
+If you work with JOBORG the call with EXTSEL and PGJOB (see above) is not permitted.  
+ID-number: 
+These numbers are allocated in ascending order to process them consecutively. The number 
+has to start with 1 and has to be continuously without any gap.  
+ 
+Distance: 
+The job is printed in the given distance after the PrintGo. If 0 is given, the job is printed 
+immediately after the previous job.  
+ 
+Job-ID-No: 
+ID No of the assigned and available jobs (see DI-number for BEGINJOB) 
+ 
+If the joblist has to be repeated without extern PG-Signal, so the distance between jobstart1 
+and jobstart2 and so on must be set in the PG-Delay of the first job. Even the count of 
+repeats has to be set in the PG-repetition of the first job. 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+
+--- PDF PAGE 30 ---
+ 
+ 
+Page 30 from 32  25/04/2014 
+ 
+EXAMPLE for a Script: 
+ 
+BEGINLJSCRIPT [(V1.1.0.0)] 
+JLPAR [85 0 0 0 2 0 0 25000 00:00 0] 
+BEGINJOB [ 0 () ] 
+JOBPAR [ 20000 0 0 350 0 0 0 1 1 0] 
+OBJ [0 1 0 0 (ISO7_24x18)  (Text) 1 0 0 0 0 1 0 0 0 0] 
+OBJ [0 62 0 0 (ISO7_12X8)  ({c}) 1 0 0 0 0 0 0 0 0 0] 
+CNT [ 4 1000 0 8000 1 1 1 1 10 0 1] 
+OBJ [0 99 0 0 (ISO7_7X5)  ({t}) 1 0 0 0 0 0 0 0 0 0] 
+TIME [ (dd.mm.yyyy) 0] 
+RPLDAY [ (MON)  (TUE)  (WED)  (THU)  (FRI)  (SAT)  (SUN) ] 
+RPLMON [ (JAN)  (FEB)  (MAR)  (APR)  (MAY)  (JUN)  (JUL)  (AUG)  (SEP)  (OCT)  
+(NOV)  (DEC) ] 
+ENDJOB [] 
+ENDLJSCRIPT [] 
+ 
+ 
+Resulting imprint: 
+ 
+ 
+ 
+ 
+                                                   
+  
+ 
+ 
+Object 1: Fix text Object 2: 
+Counter 
+Object 3: Date 
+(Day:Month:Year) 
+
+--- PDF PAGE 31 ---
+ 
+ 
+Page 31 from 32  25/04/2014 
+History 
+V1.01, Page 20 
+Ltype bei Obj Parameterliste hinzugefügt  
+ 
+V1.02, Page 17 
+Replacements for years (RPLYEAR) increased to 19 
+ 
+V1.03, Page 18 
+ Extern Text: Parameter character offset added 
+V1.04, Page 9+13+19 , Oct.19.2009 
+ JOBPAR. 11: Cameratrigger-delay added 
+ OBJ. 17: Camera field added 
+V1.05, Page 10  11.03.2010 from V60.0.01.1 
+ Some PrintModes added 
+V1.06, Page 9+20  22.03.2010 from V60.0.01.2 
+ Printparameter 16 added 
+ Printparameter 17 added 
+ Obj. parameter ID18  added 
+ Obj. parameter ID19  added  
+V1.6.0.1, Page 18  April, 22.2010 from V60.0.1.2 
+ Shifttimes increased to 24 and variabel  designed.  
+V1.6.0.2, Page 9 + 11 + 19   03.05.2010 from V60.0.1.3 
+ Obj. parameter ID3  added 
+Printparamter 16 was wrong 
+Jobparameter 11 improved 
+V1.6.0.3, Page 18 
+ Extern Text: Parameter „Check double prints“ added . 
+V1.6.0.4, Page 10:   June, 20.2011 from V60.0.01.08  
+ New printmode: 16 Dot Speed 
+V1.6.0.5, Page 7:  19.10.2011 from V60.0.1.10  
+ New: Speed dependant output 
+V1.6.0.6, Page 20:  Feb., 15.2012 from V60.0.1.12 
+ F2897 added 
+V1.6.0.7, Page 15:  May 07.2012 from V60.0.1.13 
+ USPS barcode added 
+ QR code added 
+V1.6.0.8, Page 15:  June 27.2012 from V60.0.1.14 
+ PPN Code ECC200 square and rectangular added 
+V1.6.0.9 Oct. 17.2012 from V60.0.1.15 
+ Page 20: Expiry offset in months added 
+Page 19: Value range from character offset at ExternText increased from 100 to 255 
+V1.6.0.10 Jan.01.2013  from V60.0.1.17 was shifted to the V60.0.1.18 
+ JLPAR 5 and 11: unit speed changed from m/min to  dm/min. 
+V1.6.0.11 13.02.2013 ab V60.0.1.17 was shifted to the V60.0.1.18 
+ Extension for PromptField 
+V1.06.0.12  10.04.2013 
+ Bugfix of Description on page 3 and repeats of CNT . 
+ Date/Time object: Replacements for days 1,2,3,4,…, 31 
+
+--- PDF PAGE 32 ---
+ 
+ 
+Page 32 from 32  25/04/2014 
+V1.06.0.13  18.04.2013  from V60.0.1.19 
+ Description Extension of up-/down mode in LOOP MOD US on counter objects  
+JOBPAR: Text “Print stop reacts after TextEnd” replaced with: “Print stop interrupts 
+print-out immediately” 
+Date/time object: It is possible to choose special replacements for hours and minutes. 
+V01.06.00.14   13.03.2014 from V60.0.24.00 
+ CNT Page 12: new  Parameter Global counter 
+V01.06.00.15   22.04.2014 from V60.0.25.00 
+ JOBPAR: Par. 7 will be used. 17.04.2014  Ab V60.0. 25.00 
+ JOBPAR Par. 18 is new 
+ 

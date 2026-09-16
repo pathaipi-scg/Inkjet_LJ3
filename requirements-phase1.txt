@@ -1,0 +1,2 @@
+# Python 3.11. Phase 1 runtime and tests use only the standard library.
+# The existing requirements.txt is preserved; its packages are not required here.
