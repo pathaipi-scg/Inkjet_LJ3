@@ -32,39 +32,50 @@ def main() -> int:
         return 2
     client = LJ3Client(settings, print_event)
     last_sent: str | None = None
-    print("Leibinger Jet3 - manual Phase 1 tool")
+    print("Leibinger Jet3 - Manual Phase 1 Tool")
     print("ASCII / Field 0 only. Phase 1 commissioning policy: printing stopped, test job prepared.")
     print("Stopped printing is our test policy; the manuals do not establish it as an ET requirement.")
     print("No startup connection or commands. All actions below are manual.")
     print("Readback match does not prove physical printing. No Unicode mode.")
     try:
         while True:
-            print(f"\nTarget {settings.ip or '(not configured)'}:{settings.port} | "
-                  f"timeout {settings.timeout:g}s | {'connected' if client.connected else 'disconnected'}")
-            print("1 Configure target (session only)\n2 Test TCP connection (no LJ3 command)\n"
-                  "3 Send ExternText\n4 Read ExternText\n5 Verify last submitted value (read only)\n0 Quit")
+            print(f"\nTarget: {settings.ip or '(not configured)'}:{settings.port}\n"
+                  f"Status: {'connected' if client.connected else 'disconnected'}")
+            print("\n1  Test TCP Connection\n2  Read Current ExternText\n"
+                  "3  Send Test Text (TEST123)\n4  Verify Last Sent Text\n"
+                  "5  Send Free Text\n6  Configure Target\n0  Quit")
             action = input("Action: ").strip()
             try:
                 if action == "0":
                     return 0
-                if action == "1":
+                if action == "6":
                     candidate = configure(settings)
                     client.disconnect()
                     settings = candidate
                     client = LJ3Client(settings, print_event)
                     last_sent = None
                     print("Session settings changed; .env was not modified.")
-                elif action == "2":
+                elif action == "1":
                     try:
                         client.connect()
-                        print("TCP reachable; this does not prove printer identity or command support.")
+                        print("TCP CONNECTION OK")
+                        print("TCP only; this does not prove printer identity or command support.")
+                    except (ValueError, CommunicationError) as exc:
+                        print(f"TCP CONNECTION FAILED\nERROR: {exc}")
                     finally:
                         client.disconnect()
-                elif action == "3":
-                    text = input("ExternText (spaces are preserved): ")
+                elif action in ("3", "5"):
+                    text = "TEST123" if action == "3" else input("Free Text (ASCII; spaces are preserved): ")
+                    if not text.isascii():
+                        print("Unicode / Experimental - SEND BLOCKED")
+                        print("The LJ3 manual requires hexadecimal text for Unicode fonts/jobs, not UTF-8. "
+                              "Unicode length limits and readback behavior are not fully specified. "
+                              "No connection or command sent. Prove ASCII operation first; "
+                              "confirm the font/job and transmission rules before a controlled Thai experiment.")
+                        continue
                     wire = build_command("=ET", text)
                     settings.validate()
-                    print(f"Target: {settings.ip}:{settings.port}\nText: {text!r}\n"
+                    print(f"Target: {settings.ip}:{settings.port}\nText to send:\n{text}\n"
                           f"Preview: {wire!r}\nHex: {wire.hex(' ').upper()}")
                     print("Phase 1 commissioning policy - confirm at the printer: production is stopped; a non-Unicode test job uses "
                           "Field 0; lengths/offsets match this value.")
@@ -74,14 +85,21 @@ def main() -> int:
                     last_sent = None  # An uncertain write invalidates previous comparison state.
                     client.set_external_text(text, stopped_ascii_job_confirmed=True)
                     last_sent = text
+                    print("SENT - UNVERIFIED")
+                elif action == "2":
+                    print(f"Current Jet3 ExternText:\n{client.get_external_text()}")
                 elif action == "4":
-                    print(f"Current ExternText (ASCII interpretation): {client.get_external_text()!r}")
-                elif action == "5":
                     if last_sent is None:
                         print("No completed send for this target in this session. Use Read after an uncertain write.")
                         continue
-                    result = client.verify_external_text(last_sent)
-                    print(f"{'VERIFIED (exact readback)' if result.matched else 'MISMATCH'}: sent={result.expected!r}, returned={result.actual!r}")
+                    print(f"Sent:\n{last_sent}")
+                    try:
+                        result = client.verify_external_text(last_sent)
+                    except (ValueError, CommunicationError) as exc:
+                        print(f"Result:\nCOMMUNICATION ERROR\nERROR: {exc}")
+                        continue
+                    print(f"Jet3 Readback:\n{result.actual}\n\nResult:\n"
+                          f"{'VERIFIED' if result.matched else 'MISMATCH'}")
                     print("Comparison only; verify the job and a physical sample separately.")
                 else:
                     print("Choose an action from the menu.")

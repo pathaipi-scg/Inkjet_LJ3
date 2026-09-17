@@ -113,7 +113,7 @@ class LJ3Client:
                 self._emit("TX", "Attempting transmission; delivery not yet known", wire)
                 self._socket.sendall(wire)
                 if command == "=ET":
-                    self._emit("RESULT", "Sent, UNVERIFIED. No ordinary ACK is specified; read back separately.")
+                    self._emit("RESULT", "SENT - UNVERIFIED. No ordinary ACK is specified; read back separately.")
                     return None
                 return self._read_external_text_frame(deadline)
             except ProtocolError as exc:

@@ -16,13 +16,13 @@ From this workspace in PowerShell:
 Startup only loads configuration and displays the menu. It does not connect,
 send commands, poll, retry, or change printer settings.
 
-Choose **1** to set the printer IPv4 address, TCP port, and timeout for this
+Choose **6** to set the printer IPv4 address, TCP port, and timeout for this
 session. Alternatively, add the entries from [.env.example](.env.example) to
 the existing project `.env`. Preserve its existing settings; do not overwrite
 it. Default port is 3000; timeout is 3 seconds; no IP is assumed.
 `.env` is ignored by Git and must not be committed.
 The site reservation is configured in the local `.env`, so it is prefilled
-when this workspace's program starts. It remains editable through action 1.
+when this workspace's program starts. It remains editable through action 6.
 There is no site-specific IP in the client, protocol, or versioned defaults.
 
 The `.env` reader accepts `KEY=value`, optional matching quotes, and whole-line
@@ -32,19 +32,24 @@ execution. Settings changed in the menu are not saved to disk.
 
 | Action | Behavior |
 | --- | --- |
-| 1 Configure | Change this session's IP, port, and timeout; clear comparison history |
-| 2 Test TCP | Open and close TCP; send no LJ3 application bytes |
-| 3 Send | Validate/preview bytes, require `SEND`, transmit ExternText once |
-| 4 Read | Send `?ET` and display the returned ASCII value |
-| 5 Verify | Read only, compare exactly with the last successfully submitted value |
+| 1 Test TCP Connection | Open and close TCP; send no LJ3 command; report TCP CONNECTION OK or TCP CONNECTION FAILED |
+| 2 Read Current ExternText | Send `?ET` and display the returned ASCII value; no modification |
+| 3 Send Test Text (TEST123) | Preview fixed `TEST123`, require `SEND`, transmit once using `=ET` |
+| 4 Verify Last Sent Text | Send `?ET`, compare exactly with the last successfully submitted value; report VERIFIED, MISMATCH, or COMMUNICATION ERROR |
+| 5 Send Free Text | Enter printable ASCII, preview, require `SEND`, transmit once using `=ET` |
+| 6 Configure Target | Change this session's IP, port, and timeout; clear comparison history |
 | 0 Quit | Close any local socket and exit |
 
 Every network operation is an explicit operator action. Events show UTC
 timestamps, connection status, escaped bytes, hexadecimal TX/RX, and errors.
 Output is displayed in the terminal, not automatically persisted to a log file.
 TX describes attempted bytes; a failed transmission may have partially reached
-the printer. A successful write is labelled **UNVERIFIED** because ordinary
-LJ3 commands have no guaranteed acknowledgement. Action 5 does not resend text.
+the printer. A successful write is labelled **SENT - UNVERIFIED** because ordinary
+LJ3 commands have no guaranteed acknowledgement. Action 4 does not resend text.
+
+First site workflow: **1 -> 2 -> 3 -> 4**. After those pass, choose **5** and
+enter `CHARCOAL GREY`, then **4** to verify it. Other ASCII examples include
+`RED`, `BLUE`, `COLOR A`, and `LOT260917`. Each write needs its own `SEND`.
 
 ## Before sending
 
@@ -60,14 +65,19 @@ with an additional conservative 256-byte cap after escaping. Spaces are
 preserved exactly; no padding or truncation occurs.
 
 Confirm the job's offsets and placeholder lengths at the printer. A readback
-match is labelled **VERIFIED (exact readback)** only after a successful `?ET`
+match is labelled **VERIFIED** only after a successful `?ET`
 response and exact comparison. It does not prove the job used it or
 that a product was printed correctly. No start/stop, nozzle, job upload, or
 arbitrary raw command is exposed by the tool.
 
-Unicode fonts require hexadecimal text according to the manual. Unicode mode
-is deliberately deferred because its readback/length details need hardware
-confirmation. Active-production update timing also remains unverified.
+Free Text detects non-ASCII input (including Thai `สีเทา`, `สีแดง`, `น้ำตาล`)
+and displays **Unicode / Experimental - SEND BLOCKED** before confirmation or
+network activity. Interface manual p.27 requires hexadecimal text according
+to the Unicode font/job, not UTF-8. Its length limits and readback details are
+insufficient to guarantee correct Unicode behavior, so no Unicode encoder or
+send is enabled. Prove ASCII first, then investigate the font/job and encoding
+with the vendor and a separate controlled physical experiment. Active-production
+update timing also remains unverified.
 
 ## Offline tests
 

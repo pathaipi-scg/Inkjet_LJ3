@@ -198,8 +198,9 @@ README.md       launch and offline test instructions
 2. Implement a narrow protocol surface accepting only ET write/read commands.
 3. Implement `connect`, `disconnect`, `send_command`, `set_external_text`,
    `get_external_text`, and `verify_external_text`; no startup I/O.
-4. Add an interactive menu: configure IP/port/timeouts, TCP-only connection
-   test, explicit send, read, compare with the last submitted value, and quit.
+4. Provide the commissioning menu in order: 1 TCP-only test, 2 read current
+   ExternText, 3 send fixed TEST123, 4 verify last sent text, 5 ASCII Free Text,
+   6 configure session IP/port/timeout, and 0 quit.
    Show timestamped TX/RX in escaped bytes and hex, connection state, and
    errors. A comparison match is not proof of physical printing.
 5. Test offline with standard-library unittest, injected sockets, and a local
@@ -264,3 +265,34 @@ manuals and the original requirements file were already staged; Phase 1
 implementation files remain untracked pending a commit. Git 2.36.1 required a
 temporary workspace-local global-config override for its repository ownership
 check; the override was removed and no user/global Git settings were changed.
+
+## Sequential commissioning menu update (17 September 2026)
+
+The first site workflow is **1 -> 2 -> 3 -> 4**: TCP handshake only, `?ET`
+read, confirmed `=ETTEST123`, then a separate `?ET` comparison. Action **5**
+accepts ASCII Free Text such as `CHARCOAL GREY`; action **4** then compares
+against that latest submitted value. Action **6** changes only session settings,
+which initially come from local `.env`; no target IP is embedded in client or
+protocol code. Startup performs no networking.
+
+The CLI reports TCP CONNECTION OK/FAILED, SENT - UNVERIFIED for socket send
+success, and a verification Result of VERIFIED, MISMATCH, or COMMUNICATION
+ERROR. VERIFIED means exact readback only. Both send actions require the same
+explicit SEND and stopped-production/non-Unicode Field 0 job confirmation.
+A failed write invalidates previous comparison state; cancellation or rejected
+input preserves it. Changing the target clears it.
+
+Free Text identifies non-ASCII input as Unicode / Experimental and blocks it
+before confirmation or connection. Reinspection of interface p.27 and script
+p.25 confirms font/job-dependent hexadecimal transmission, not UTF-8, but does
+not resolve Unicode length limits or readback representation. No Unicode
+encoder or send path is enabled. Thai printing remains a separate controlled
+physical investigation after ASCII acceptance. No SQL, automatic Lot monitor,
+Kepware, OPC UA, Modbus, or automatic print start/stop commands were added.
+
+Validation: the full offline suite (`python -m unittest discover -s tests -v`)
+passed all 61 tests on 17 September 2026. Coverage includes the full CLI site
+workflow with exact wire bytes through injected sockets, TCP-only results,
+fixed and free-text confirmation, Thai/non-ASCII blocking, comparison results,
+history invalidation, and the existing loopback transport tests. The real Jet3
+was not contacted; local `.env` defaults were checked without network activity.

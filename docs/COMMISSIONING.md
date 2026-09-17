@@ -29,9 +29,9 @@ remain unknown. Preserve this distinction when designing future Lot updates.
    with `{e}` / EXTTXT, Field Number **0**, and a non-Unicode font (Unicode
    font names begin with `~`). Field Numbers 1 and 2 in the HyperTerminal
    manual are mailing fields and do not apply to this test.
-4. Choose a known short ASCII value such as `BLUE`. For this four-character
+4. Use the fixed ASCII value `TEST123`. For this seven-character
    example, confirm that the object's character offset is 0 and its required
-   placeholder count/length is appropriate for four characters. Check every
+   placeholder count/length is appropriate for seven characters. Check every
    Field 0 object: the largest offset-plus-placeholder count determines the
    job's required input. Never assume a readback proves all objects updated.
 5. Check the job's **Check double prints** setting. When enabled, missing new
@@ -50,35 +50,43 @@ remain unknown. Preserve this distinction when designing future Lot updates.
 
 1. Start `.\.venv\Scripts\python.exe -m lj3` from the project. Confirm that
    startup displays the menu without a connection attempt.
-2. Choose **1** and enter the verified printer IP, port, and timeout. A
-   timeout of 3 seconds is application policy, not a printer requirement.
+2. Confirm the displayed target loaded from local `.env`. If a change is
+   needed, choose **6 Configure Target** for session-only IP, port, and timeout.
+   A timeout of 3 seconds is application policy, not a printer requirement.
    Connect has this timeout; sending and waiting for a reply share a separate
-   deadline of the same duration.
-3. Choose **2**. Confirm the TCP connection opens and closes with no TX
+   deadline of the same duration. Configuration clears comparison history.
+3. Choose **1 Test TCP Connection**. Expect **TCP CONNECTION OK** or
+   **TCP CONNECTION FAILED**. The connection opens and closes with no LJ3
    command. A reachable port alone could belong to another device.
-4. Choose **4** to assess `?ET` support before changing text. Record the exact
-   RX bytes and observed value. Expected ordinary framing is
-   `^0=ET<value><CR>`; a length-prefixed response is also accepted. Old firmware
-   may not support `?ET`. Timeout means no usable response, not proof of an
-   empty value, rejected write, or unsupported command.
-5. Choose **3** and enter the test value. Check the target, text, and byte
-   preview. For `BLUE`, the entire frame must be:
+4. Choose **2 Read Current ExternText** before changing text. Record the exact
+   RX bytes and value under `Current Jet3 ExternText:`. This sends only `?ET`.
+   Expected ordinary framing is `^0=ET<value><CR>`; a length-prefixed response
+   is also accepted. Old firmware may not support `?ET`. A timeout means no
+   usable response, not proof of an empty value or unsupported command.
+5. Choose **3 Send Test Text (TEST123)**. No text entry is needed. Check the
+   target, `Text to send: TEST123`, and byte preview. The entire frame is:
 
    ```text
-   Escaped: b'^0=ETBLUE\r'
-   Hex:     5E 30 3D 45 54 42 4C 55 45 0D
+   Escaped: b'^0=ETTEST123\r'
+   Hex:     5E 30 3D 45 54 54 45 53 54 31 32 33 0D
    ```
 
    The final byte is CR, not the literal characters `\r`. The address is ASCII
    `0`, not byte `00`. There is no separator inserted before the text.
 6. Confirm printing is stopped and the non-Unicode Field 0 test job is ready.
    Type **SEND** to send once, or anything else to cancel without network I/O.
-   “Sent, UNVERIFIED” is expected. Normal ET writes need not return an ACK.
-7. Choose **5**. This opens a fresh connection and sends only `^0?ET<CR>`.
-   Check VERIFIED (exact readback)/MISMATCH and the exact returned text, including spaces.
-   The manual's 20-40 ms reaction-time statement is not a guaranteed deadline;
-   if needed, inspect the printer and manually perform another read later.
-   The application never repeats a write to fix a mismatch.
+   **SENT - UNVERIFIED** is expected. Normal ET writes need not return an ACK.
+7. Choose **4 Verify Last Sent Text**. This opens a fresh connection and sends
+   only `^0?ET<CR>`. Check `Sent:`, `Jet3 Readback:`, and `Result:`. An exact
+   match gives **VERIFIED**; a different value gives **MISMATCH**; failed
+   communication or an invalid reply gives **COMMUNICATION ERROR**. Spaces
+   matter; inspect escaped TX/RX logs when a difference is hard to see.
+   The manual's 20-40 ms reaction time is not a guaranteed deadline. Inspect
+   the printer and manually read again if needed. No write is retried.
+   After **1 -> 2 -> 3 -> 4** passes, choose **5 Send Free Text**, enter
+   `CHARCOAL GREY`, check the job lengths/offsets for this longer value, and
+   confirm **SEND**. Then choose **4** again to verify the new value.
+   Other ASCII examples: `RED`, `BLUE`, `COLOR A`, `LOT260917`.
 8. Inspect the job display and, through the printer's normal local procedure,
    produce a controlled sample. Verify the correct object, visible color
    text, clipping/length, and intended layout. The application does not
@@ -86,6 +94,19 @@ remain unknown. Preserve this distinction when designing future Lot updates.
 9. Record firmware, job name, font, Field 0 settings, double-print-check
    setting, tested value, TX/RX, measured response behavior, and physical
    result in the acceptance record below.
+
+## Thai / Unicode experiment (blocked in this tool)
+
+Prove ASCII communication and physical output first. Free Text detects
+non-ASCII characters and displays **Unicode / Experimental - SEND BLOCKED**.
+It does not request SEND confirmation, connect, or send UTF-8 or guessed hex.
+Interface manual p.27 requires hexadecimal text for Unicode fonts configured
+in the job; script manual p.25 identifies those fonts with `~`. The supplied
+manuals do not fully define Unicode length limits or readback representation.
+Confirm those rules, the installed Thai font/glyphs, and the job with the
+vendor before arranging a separate controlled physical Unicode experiment.
+A blocked entry leaves the last successfully submitted ASCII value available
+for action **4** verification.
 
 ## Failure handling
 
