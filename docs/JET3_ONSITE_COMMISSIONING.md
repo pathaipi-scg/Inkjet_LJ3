@@ -1,12 +1,12 @@
 # LEIBINGER JET3 On-Site Commissioning Guide
 
-Commissioning results are updated incrementally. Steps that have not been completed remain **NOT TESTED**. Record results only after a step has actually been completed and confirmed. Do not infer printer identity or readiness from a TCP connection alone.
+Commissioning results are updated incrementally. Steps that have not been completed remain **NOT TESTED**. Record results only after a step has actually been completed and confirmed. Do not infer printer identity or readiness from a TCP connection alone. In addition to the earlier `TEST1234` HMI/job-field check, the operator confirmed a combined Lot/Thai value displayed correctly and physically printed on paper on 2026-11-26. Print quality and complete physical character verification still need improvement; see the latest result entry below.
 
 ## 1. Scope and safety
 
-This guide covers the existing Phase 1 manual terminal application and controlled ASCII ExternText communication tests. Status inquiry and exact `TEST123` and `4691125P` readbacks have passed. It does not authorize production operation, automatic Lot updates, job upload, printer-state changes, or a print start.
+This guide covers the Phase 1 terminal application and controlled JET3 commissioning. Status inquiries and exact `TEST123`, `4691125P`, and Thai combined-value readbacks are recorded below. The operator has now confirmed the selected Field 0 Thai configuration displayed correctly on the HMI and printed on paper. The result is limited to the tested job/font/text; print quality and complete physical character verification remain open.
 
-For a communication-only ExternText test, the protocol manual does not require a particular loaded job or an EXTTXT Field 0 object: `=ET` transfers the external-text parameter and `?ET` inquires it. The separate Scriptlanguage manual describes Field 0 as the job-side mechanism that inserts this variable into printed text; that is a print-job integration requirement, not a prerequisite for protocol transport/readback. As a commissioning safety policy, keep printing stopped, prevent print triggers, and use one ExternText writer for any first physical write. The application cannot independently check these conditions; its current confirmation asks the operator to attest to them. An earlier app version also required a non-Unicode Field 0 job and matching lengths/offsets before a write; that extra check was unrelated to communication and did not verify job integration. Field 0 integration and physical printing remain separate, untested steps.
+For a communication-only ExternText test, the protocol manual does not require a particular loaded job or an EXTTXT Field 0 object: `=ET` transfers the external-text parameter and `?ET` inquires it. The separate Scriptlanguage manual describes Field 0 as the job-side mechanism that inserts this variable into printed text; that is a print-job integration requirement, not a prerequisite for protocol transport/readback. As a commissioning safety policy, keep printing stopped, prevent print triggers, and use one ExternText writer for any first physical write. The application cannot independently check these conditions; its current confirmation asks the operator to attest to them. An earlier app version also required a non-Unicode Field 0 job and matching lengths/offsets before a write; that extra check was unrelated to communication and did not verify job integration. Field 0 integration and physical printing are separate acceptance checks; the later Thai Field 0 result below records the specific combination now tested.
 
 - Do not assign an IP until the site network administrator confirms its reservation and availability.
 - Do not use a factory reset to resolve interface-mode or protocol problems.
@@ -113,14 +113,15 @@ as opaque data; its meaning is undocumented.
 previously verified `TEST123`: **MATCH**. This was an observation/comparison
 only, not menu action 4 (which is tied to a write in the same client session).
 No `=ET` write, printer setting change, job modification, restart, or print
-start occurred. Physical job rendering and print output remain **NOT TESTED**.
+start occurred. At this earlier read-only checkpoint, physical job rendering and print output remained **NOT TESTED**; the later Thai Field 0 test is recorded below.
 
 ### Controlled communication-only Lot write/readback (2026-11-26)
 
 The operator confirmed printing stopped, print triggers inhibited, no competing
 ExternText writer, and `!EM` echo disabled. The current print job was left
 unchanged. Field 0 integration and physical printing were explicitly out of
-scope and remain **NOT TESTED**. The updated application ran with target
+scope for this communication-only test and remained **NOT TESTED** at that
+time. The later Thai Field 0 result is recorded below. The updated application ran with target
 `172.28.169.248:3000` and the 10-second timeout. Its menu option 7 sent the
 read-only status request before the write on the same TCP session:
 
@@ -144,8 +145,10 @@ Menu option 4 then sent `?ET` on the same still-open socket. TX was `b'^0?ET\r'`
 **3016.000 ms**. Exact comparison: expected `'4691125P'`, returned
 `'4691125P'` — **VERIFIED**. No retry, job modification, settings change,
 restart, or print start occurred. The application session was closed normally.
-MES/SQL integration and automatic Lot monitoring remain **NOT IMPLEMENTED**;
-this validation covers only the manual communication client.
+At the time of this physical test, MES/SQL integration and automatic Lot
+monitoring were **NOT IMPLEMENTED**. The later SQL audit implementation is
+documented in [DB_INTEGRATION.md](DB_INTEGRATION.md); it has not been used for a
+physical printer test.
 
 ### Suggested Windows checks (operator-run; not performed for this guide)
 
@@ -156,11 +159,13 @@ this validation covers only the manual communication client.
 
 ## 3. Application architecture and startup
 
-The Phase 1 application is a Python 3.11, standard-library-only terminal tool. It supports manually configuring a target, testing TCP, reading ExternText, sending ASCII ExternText, and comparing a readback. It does not implement SQL, automatic Lot monitoring, product/color lookup, printer job upload, print start/stop, or arbitrary raw commands.
+The original Phase 1 application was a Python 3.11 manual terminal tool. The current application retains those actions and adds an automatic transaction, read-only status aggregation, optional SQL audit persistence, and local journal recovery. It still does not implement automatic Lot monitoring, product/color lookup, printer job upload, print start/stop, or arbitrary raw commands. No physical printer commands were sent during the later software/database implementation.
 
 - [lj3/config.py](../lj3/config.py): loads and validates the project-local `.env` subset `LJ3_IP`, `LJ3_PORT`, and `LJ3_TIMEOUT_SECONDS`. Defaults are no IP, port 3000, and a 10-second timeout. Valid ports are 1–65535 and timeout is 0.1–60 seconds. Menu changes are session-only.
-- [lj3/protocol.py](../lj3/protocol.py): builds allowlisted `=ET`, `?ET`, and `?RS` frames, validates ASCII text, parses incoming frames, and decodes ExternText/status.
-- [lj3/client.py](../lj3/client.py): `LJ3Client.connect()` opens/reuses TCP; sequential `send_command()` calls share that session; `get_printer_status()`, `set_external_text()`, `get_external_text()`, and `verify_external_text()` provide the higher-level actions.
+- [lj3/protocol.py](../lj3/protocol.py): builds allowlisted `=ET`, `?ET`, `?RS`, `?EX`, and `?JL` frames, validates ASCII text, parses incoming frames, and decodes documented status fields.
+- [lj3/client.py](../lj3/client.py): `LJ3Client.connect()` opens/reuses TCP; sequential `send_command()` calls share that session; read-only status inquiries and ExternText operations use the same client session.
+- [lj3/transaction.py](../lj3/transaction.py): performs preflight, baseline, one write, exact same-session readback, structured outcome, and per-printer lock.
+- [lj3/db.py](../lj3/db.py) and [docs/DB_INTEGRATION.md](DB_INTEGRATION.md): SQL persistence, migrations, and local-journal recovery.
 - [lj3/__main__.py](../lj3/__main__.py): displays the menu and runs actions explicitly chosen by the operator. Startup itself performs no network I/O.
 
 From PowerShell opened in the project directory, the documented launch is:
@@ -183,8 +188,366 @@ The menu and call flow are in [lj3/__main__.py](../lj3/__main__.py#L26-L46); sta
 | **4 — Verify Last Sent Text** | Calls `verify_external_text()` to send `?ET` on the same live TCP session that carried the latest write, then compares exact strings. | Displays expected and returned values with `repr`, and `VERIFIED`, `MISMATCH`, or `COMMUNICATION ERROR`. | Requires a successful write on the still-open session. It refuses to reconnect if that session was lost. Does not write or print. |
 | **5 — Send Free Text** | Prompts for operator text, previews it, and sends once after write-safety and echo-mode confirmations. | Printable ASCII only; type `SEND` after confirming production stopped, triggers inhibited, and no competing writer, then `ECHO OFF` only if `!EM` echo is confirmed disabled. | This writes to ExternText. Empty text, controls, non-ASCII, and literal backslashes are rejected. Carets are escaped. Field 0 lengths/offsets apply only to a later print-integration test, not this communication test. |
 | **6 — Configure Target** | Prompts for printer IPv4, TCP port, and timeout. | Blank input keeps the current value. | Values are validated; configuration is session-only and clears verification history. Does not configure the server NIC. |
-| **7 — Read Printer Status** | Sends read-only `?RS` and displays the five manual-defined `=RS` parameters. | No operator text input. Additional response parameters are shown as opaque bytes, with no speculative labels. | Does not modify printer state. Uses/reuses the current session; raw RX and elapsed response time are logged. |
+| **7 — Automatic ExternText Transaction** | Reads `?RS`, `?EX`, `?JL`, baseline `?ET`; blocks unless machine state 4/error 0/PrintGo low; then sends one `=ET` and exact same-session `?ET` verification. | Enter printable ASCII and confirm stopped production, inhibited triggers, no competing external writer, and disabled `!EM` echo. | No automatic retry. Per-printer lock applies only inside this process. Trigger inhibition, production stop, external writers, and echo state cannot all be detected and remain operator-attested/UNKNOWN. |
+| **8 — Read Printer Status** | Read-only `?RS`, `?EX`, and `?JL`; displays documented values, opaque extras, and UNKNOWN conditions. | No text input. | Sends no state-changing command; current status snapshot is journaled and persisted to SQL when available. |
+| **9 — Database Status** | Inspects SQL Server version, schema objects, and database permissions. | No credential values displayed. | Uses the local `.env` SQL_SERVER exactly. `127.0.0.1:1433` is intentional because the application and SQL Server are on the same physical server. |
+| **10 — Recover Local Transaction Log** | Idempotently syncs durable journal records to SQL. | No printer command. | Does not replay writes; uncertain write intents become `WRITE_OUTCOME_UNKNOWN`. |
+| **11 — Experimental Thai ISO-8859-11 `=ET` (UNVERIFIED)** | Legacy global Field 0 ExternText hypothesis; writes `=ET`. | Do not use for the new Thai Mailmode Field 1 test; it can replace the existing Field 0 Lot Number. |
+| **12 — Experimental Thai Mailmode Field 1 (UNVERIFIED)** | Shows exact `=MR` raw-byte preview; validates expected Field 0, expected job, readiness, and two empty-FIFO samples; submits one record; verifies queue status and unchanged `?ET`; leaves the record staged. | Requires job EXTTXT parameter 3 = 1, explicit acceptance of the unverified single-byte hypothesis, production stopped, triggers inhibited, sole writer, and echo disabled. Never sends `!GO` or `!FF`; no payload/rendering readback. Do not start printing. |
 | **0 — Quit** | Exits and closes any local socket. | No further input. | If an operation was interrupted, the printer may have received some or all of a write; there is no automatic retry. |
+
+### Controlled read-only status and SQL logging validation (2026-11-26)
+
+The operator authorized normal `.env` database verification followed by one
+Option 8 status snapshot against `172.28.169.248:3000`. SQL configuration was
+not overridden and `.env` was not changed. The in-application Option 9 reported
+SQL target `127.0.0.1:1433`, database `CB`, SQL Server `15.0.2000.5` (2019),
+`inkjet` present, all five expected tables and four views present, and no
+missing objects. This confirms localhost is the intended route to the SQL
+Server on the same physical server. No credential values were displayed.
+
+The existing application started without network activity and displayed
+`172.28.169.248:3000`. Option 8 opened one TCP session and sent only the three
+documented read-only inquiries below. The successful socket was closed normally
+when the application exited. No `=ET`, Option 7, printer setting/job change, or
+print start/stop command was sent.
+
+**`?RS` — printer status.** TX: `b'^0?RS\r'` (hex `5E 30 3F 52 53 0D`),
+16.000 ms. RX: `b'^0=RS4\t4\t0\t0\t230\t0\r'` (hex
+`5E 30 3D 52 53 34 09 34 09 30 09 30 09 32 33 30 09 30 0D`). Decoded manual
+fields: nozzle state **4 (closed)**; machine state **4 (Ready for Action)**;
+printer error **0 (no error)**; headcover **0 (closed)**; ActSpeed **230
+m/min**. One trailing numeric field, `0`, is not documented in `=RS` and remains
+opaque.
+
+**`?EX` — extern states.** TX: `b'^0?EX\r'` (hex `5E 30 3F 45 58 0D`),
+62.000 ms. RX: `b'^0=EX230\t0\t236\t0\t0\t0\r'` (hex
+`5E 30 3D 45 58 32 33 30 09 30 09 32 33 36 09 30 09 30 09 30 0D`). Persisted
+decoded fields: actual speed **230 m/min**; input bitfield **0**; maximum speed
+**236 m/min**; encoder direction **0 (backward)**; PrintGo (Par6) **0 (LOW)**.
+The fifth positional value is also `0`; the supplied `=EX` table does not
+define Par5, so it is unsupported/uninterpreted by the application. No later
+reserved values were returned. A low PrintGo sample does **not** establish
+that external triggers are inhibited.
+
+**`?JL` — loaded-job inquiry.** TX: `b'^0?JL\r'` (hex
+`5E 30 3F 4A 4C 0D`), 47.000 ms. RX: `b'^0=JLFFSDISK\\\\JOBS\\\\CB-LOT-TEST.job\t16630114\t26-11-26 13:26:02\r'`
+(hex `5E 30 3D 4A 4C 46 46 53 44 49 53 4B 5C 5C 4A 4F 42 53 5C 5C 43 42 2D 4C 4F 54 2D 54 45 53 54 2E 6A 6F 62 09 31 36 36 33 30 31 31 34 09 32 36 2D 31 31 2D 32 36 20 31 33 3A 32 36 3A 30 32 0D`). The response begins with active job path `FFSDISK\\\\JOBS\\\\CB-LOT-TEST.job`; additional tab-delimited values are `16630114` and `26-11-26 13:26:02`. The application preserves the full response and does not assign meanings to those trailing values.
+
+**Application-derived state:** `Printing: NO` because the documented machine
+state is 4, not state 6; `ExternText ready: YES` under the application's
+state-4/error-0 rule. This is a point-in-time status result, not proof that
+production is stopped. Trigger inhibition remains **UNKNOWN**; the application
+cannot query it. The status check reported no printer or protocol error.
+
+**Persistence verification:** the application reported “saved to local journal
+and SQL Server.” The local journal contains one `STATUS_ONLY` record for
+`172.28.169.248:3000` with 11 captured events. Using the same `.env` settings,
+read-only SQL queries confirmed the matching row in `inkjet.PrinterStatus` and
+11 corresponding rows in `inkjet.StatusLog` (3 TX, 3 RX, 3 timing, 2
+connection-status events). `inkjet.TransactionLog` records `STATUS_ONLY` /
+`READ_ONLY_STATUS`. The stored local time is `2026-11-26 14:08:39.141` Bangkok
+(UTC+07:00). The raw `?EX` event in `StatusLog` preserves the unsupported fifth
+positional value even though the app does not interpret it.
+
+For the earlier ASCII commissioning steps, Field 0 rendering and physical
+print output had not yet been tested. The later Thai Field 0 test is recorded
+below. Before any future ExternText write or production step, still confirm manually: (1) the
+responsible operator has stopped production; (2) external print triggers are
+inhibited at the PLC/line (PrintGo LOW is not proof); (3) no other application,
+PLC, or controller will write ExternText; (4) `!EM` command echo is disabled if
+same-session readback will be used; and (5) the active job shown above is the
+intended job and will remain unchanged unless separate job-change approval is
+given. Those confirmations were later obtained for the single controlled test
+recorded next; they are not blanket authorization for another write.
+
+### Controlled Option 7 ExternText transaction (2026-11-26)
+
+After the user's approval for this specific transaction, the application was
+launched with target `172.28.169.248:3000`. Option 9 first confirmed normal
+`.env` SQL configuration `127.0.0.1:1433`, database `CB`, SQL Server
+`15.0.2000.5`, and the complete `inkjet` schema (five tables/four views). No
+host override was used. The user had confirmed this application was the only
+ExternText writer. At the Option 7 prompt, the operator confirmed production
+was stopped, external triggers were inhibited, and `!EM` command echo was
+disabled. The confirmation event was journaled and persisted.
+
+Requested text: **`TEST1234` (8 printable ASCII characters)**. Expected job:
+**`CB-LOT-TEST.job`**. The live `?JL` response basename matched the expected job;
+its additional tab-separated values were retained without interpretation. All
+automatic gates passed: `=RS` machine state 4 (Ready for Action), error 0,
+recognized non-printing state, `=EX` PrintGo LOW, and expected job match. No
+readiness blocker or protocol/transport error occurred.
+
+**Status gate frames:**
+
+- `?RS` TX `b'^0?RS\r'` (hex `5E 30 3F 52 53 0D`); RX
+   `b'^0=RS4\t4\t0\t0\t230\t0\r'` (hex
+   `5E 30 3D 52 53 34 09 34 09 30 09 30 09 32 33 30 09 30 0D`); **62.000 ms**.
+- `?EX` TX `b'^0?EX\r'` (hex `5E 30 3F 45 58 0D`); RX
+   `b'^0=EX230\t0\t236\t0\t1\t0\r'` (hex
+   `5E 30 3D 45 58 32 33 30 09 30 09 32 33 36 09 30 09 31 09 30 0D`); **47.000 ms**.
+   PrintGo Par6 is the sixth response parameter and was **0 (LOW)**. The
+   preceding fifth positional value `1` is not defined by the supplied `=EX`
+   parameter table (which lists Par1–Par4 and Par6); it remains unsupported and
+   uninterpreted.
+- `?JL` TX `b'^0?JL\r'` (hex `5E 30 3F 4A 4C 0D`); RX
+   `b'^0=JLFFSDISK\\JOBS\\CB-LOT-TEST.job\t16630114\t26-11-26 13:26:02\r'`
+   (hex `5E 30 3D 4A 4C 46 46 53 44 49 53 4B 5C 5C 4A 4F 42 53 5C 5C 43 42 2D 4C 4F 54 2D 54 45 53 54 2E 6A 6F 62 09 31 36 36 33 30 31 31 34 09 32 36 2D 31 31 2D 32 36 20 31 33 3A 32 36 3A 30 32 0D`); **62.000 ms**. Loaded path basename: `CB-LOT-TEST.job`.
+
+**Baseline, one write, and exact readback:**
+
+- Baseline `?ET` TX `b'^0?ET\r'` (hex `5E 30 3F 45 54 0D`); RX
+   `b'^0=ET4691126P\r'` (hex `5E 30 3D 45 54 34 36 39 31 31 32 36 50 0D`);
+   **3063.000 ms**. Baseline value: `4691126P`.
+- Exactly one write: TX `b'^0=ETTEST1234\r'` (hex
+   `5E 30 3D 45 54 54 45 53 54 31 32 33 34 0D`); submit timing **15.000 ms**.
+   The printer protocol specifies no ordinary write acknowledgement; this event
+   alone was reported `SENT - UNVERIFIED`.
+- Same-session verification `?ET` TX `b'^0?ET\r'` (hex
+   `5E 30 3F 45 54 0D`); RX `b'^0=ETTEST1234\r'` (hex
+   `5E 30 3D 45 54 54 45 53 54 31 32 33 34 0D`); **3047.000 ms**.
+- Exact comparison: requested `TEST1234`, returned `TEST1234` — **VERIFIED**.
+   Transaction ID `b3baa0b8-68b9-41d7-95ce-30c5c2eb583b`; total elapsed
+   **6384.644 ms**. No retry or additional test text was sent.
+
+**Persistence verification:** the application reported local journal and SQL
+success. Using normal `.env` configuration, read-only SQL queries confirmed the
+`VERIFIED`/`SUCCESS` row in `inkjet.TransactionLog`, one matching status row in
+`inkjet.PrinterStatus`, **21** transaction events in `inkjet.StatusLog` (6 TX,
+5 RX, 6 timing, one safety attestation, and three connection-status events),
+and zero `inkjet.ErrorLog` rows. The append-only local journal contains both
+the `WRITE_PENDING` intent and final `VERIFIED` record, including status and
+raw-frame hex evidence. No SQL, protocol, transport, or readiness failure was
+detected.
+
+The operator confirmed stopped production and trigger inhibition for this
+single test; `?EX` PrintGo LOW was independently observed but is not itself
+proof of trigger inhibition. `!EM` disabled and sole-writer status are operator
+confirmations, not machine-verifiable facts. No job or printer setting was
+changed, and no printing was started. Physical printing and Field 0 rendering
+remain **NOT TESTED**. Do not perform another write without separate approval.
+
+### Visual verification and Thai External Text assessment (2026-11-26)
+
+At **14:20:42**, the operator confirmed that `TEST1234` was correctly rendered
+in the External Text field of the active `CB-LOT-TEST` job. **PASS — visual
+External Text field verification.** This is an operator-reported display/job
+field observation; it is not a physical printed-product test. No additional
+printer command was required for this report.
+
+The requested value was exactly `สีเทานก`. The initial assessment correctly
+found that Thai support was not established by the supplied manuals or the
+reported configuration. That assessment preceded a later, separately
+authorized, one-shot ISO-8859-11 hypothesis experiment documented below.
+
+- The Interfaceprotocol manual, page 27, says External Text or Mailing data
+   used with a Unicode font defined in the job must be transferred as
+   hexadecimal-coded text. Its `Hello World` example is
+   `00480065006C006C006F00200057006F0072006C0064`. The manual does not name a
+   specific Unicode encoding/byte order in that passage, nor does it provide a
+   Thai example, Thai character map, or confirmation that this printer has a
+   Thai-capable font installed. Do not infer a production encoding from the
+   example alone.
+- The Scriptlanguage manual, page 25, says Unicode fonts are identified by a
+   leading `~` in the font name. Before the Thai-field job change, the reported
+   font was `16x10_SCG` and character set `ISO1_English`; neither established
+   Thai glyph coverage. The operator now reports a new `ISOB_Thai` font at
+   24x20 and static Thai rendering in the job editor. The font name lacks the
+   documented `~` marker, and the supplied manuals do not identify its encoding
+   map. Static editor rendering does not prove dynamic Mailmode byte handling.
+- The ordinary application paths remain ASCII-only: `encode_external_text`
+   accepts printable ASCII and uses ASCII bytes; standard frame parsing and
+   readback decoding remain ASCII-based; Options 3, 5, and 7 block non-ASCII
+   input before connecting. Option 11 is the prior single ISO-8859-11 `=ET`
+   hypothesis and writes the global Field 0 value. New Option 12 is a separate
+   `=MR` Mailmode Field 1 hypothesis; neither establishes a supported or
+   general Unicode mode.
+
+**Remaining requirement:** the printer/vendor must confirm the selected
+font's Thai glyph coverage and authoritative encoding/length rules for this
+firmware before relying on Thai text operationally. Any job/font/character-set
+change or physical printing test requires separate approval. The successful
+byte comparison below verifies transport/readback only; it cannot substitute
+for that confirmation or visual/printed-output validation.
+
+### Controlled Thai ISO-8859-11 hypothesis transaction (2026-11-26)
+
+This was one separately authorized experimental transaction, not a production
+encoding approval. The operator freshly confirmed production stopped, external
+triggers inhibited, this application was the only ExternText writer, and
+`!EM` command echo was disabled. The application first confirmed normal `.env`
+SQL settings (`127.0.0.1:1433`, database `CB`, SQL Server 2019, all five
+expected tables and four views present). No `.env` values were changed.
+
+Option 11 displayed the exact candidate before the operator entered `SEND`:
+text `สีเทานก`, seven Unicode characters, ISO-8859-11 payload `CA D5 E0 B7 D2 B9 A1`,
+and complete frame `5E 30 3D 45 54 CA D5 E0 B7 D2 B9 A1 0D`. ISO-8859-11 remained
+an unverified hypothesis. No UTF-8, alternate encoding, fallback, job/font
+change, printer setting change, or print-start command was used.
+
+**Preflight, on the same TCP session:**
+
+- `?RS` TX `5E 30 3F 52 53 0D`; RX `5E 30 3D 52 53 34 09 34 09 30 09 30 09 32 33 30 09 30 0D`.
+   Decoded: nozzle 4 (closed), machine 4 (Ready for Action), error 0, headcover
+   0 (closed), ActSpeed 230; trailing `0` remains opaque. Response: 62 ms.
+- `?EX` TX `5E 30 3F 45 58 0D`; RX `5E 30 3D 45 58 32 33 30 09 30 09 32 33 36 09 30 09 31 09 30 0D`.
+   PrintGo Par6 was 0 (LOW); unsupported Par5 value `1` remains uninterpreted.
+   Response: 63 ms. Operator trigger-inhibition attestation remains distinct
+   from this LOW sample.
+- `?JL` TX `5E 30 3F 4A 4C 0D`; RX
+   `5E 30 3D 4A 4C 46 46 53 44 49 53 4B 5C 5C 4A 4F 42 53 5C 5C 43 42 2D 4C 4F 54 2D 54 45 53 54 2E 6A 6F 62 09 31 36 36 33 30 31 31 34 09 32 36 2D 31 31 2D 32 36 20 31 33 3A 32 36 3A 30 32 0D`.
+   The reported job path basename was `CB-LOT-TEST.job`, matching the required
+   job. Response: 47 ms.
+- Baseline `?ET` TX `5E 30 3F 45 54 0D`; RX
+   `5E 30 3D 45 54 54 45 53 54 31 32 33 34 0D`; decoded baseline `TEST1234`.
+   Response: 3062 ms. All automated readiness/job gates passed.
+
+**Single write and raw-byte verification:**
+
+- Exactly one `=ET` TX: `5E 30 3D 45 54 CA D5 E0 B7 D2 B9 A1 0D`
+   (`b'^0=ET\\xca\\xd5\\xe0\\xb7\\xd2\\xb9\\xa1\\r'`). Submit time
+   was 0 ms; the protocol does not provide an ordinary write acknowledgement.
+- Same-session raw `?ET` TX: `5E 30 3F 45 54 0D`; raw RX:
+   `5E 30 3D 45 54 CA D5 E0 B7 D2 B9 A1 0D`
+   (`b'^0=ET\\xca\\xd5\\xe0\\xb7\\xd2\\xb9\\xa1\\r'`), response 3079 ms.
+- Returned payload bytes exactly matched `CA D5 E0 B7 D2 B9 A1`.
+   Application result: **VERIFIED / EXPERIMENTAL_ISO8859_11_MATCH**; total
+   elapsed time 6401.396 ms. Transaction ID:
+   `964dce5a-2c50-4c75-8e3b-20113277e639`.
+
+**Audit verification:** the append-only local journal contains both the
+`WRITE_PENDING` intent and final result, with 21 captured events and raw TX/RX
+hex. Read-only SQL verification found the matching `VERIFIED` transaction,
+one `PrinterStatus` row, 21 `StatusLog` rows including the raw frames, and zero
+`ErrorLog` rows. The event audit confirms the exact single experimental
+write; there was no retry.
+
+**Interpretation and stop condition:** this establishes only an exact raw-byte
+round-trip through `?ET`. It does not show that the JET3 rendered the intended
+Thai glyphs in the HMI/job field or printed them. The operator must visually
+inspect the displayed External Text value before any further action. No other
+text/encoding may be sent without separate authorization. The current job and
+printer settings were not changed; printing was not started. Field 0
+integration and physical product printing remain **NOT TESTED**.
+
+### Confirmed combined Lot Number and Thai color Field 0 print test (2026-11-26)
+
+The operator confirmed the tested job configuration as `CB-LOT-TEST`, one
+External Text Field 0 using character set `ISOB_Thai`, font `24x20`, and
+placeholder length `30`. The selected path was the existing `=ET` command with
+ISO-8859-11 encoding. Test text: **`4691125P สีเทานกพิราบ`**. The operator
+confirmed that TCP communication succeeded, the mixed English/numeric/Thai
+value displayed correctly on the HMI, and Thai printing was demonstrated on
+paper. Print quality and complete physical character verification still need
+improvement; therefore the result is successful for this test but not a claim
+of fully accepted print quality.
+
+The existing safety preflight was completed before the one-shot write. The
+combined string was transmitted exactly once; no retry was made. Raw evidence:
+
+- `=ET` write TX: `5E 30 3D 45 54 34 36 39 31 31 32 35 50 20 CA D5 E0 B7 D2 B9 A1 BE D4 C3 D2 BA 0D`
+- `?ET` verification TX: `5E 30 3F 45 54 0D`
+- Raw `?ET` response RX: `5E 30 3D 45 54 34 36 39 31 31 32 35 50 20 CA D5 E0 B7 D2 B9 A1 BE D4 C3 D2 BA 0D`
+- Verification: **VERIFIED — raw payload matched exactly**.
+
+No Mailmode, `=MR`, or FIFO operation was needed or used. No application
+functionality was changed for this test. The result establishes the
+operator-confirmed job/font/Field 0/text combination only; it does not certify
+arbitrary Thai content, all glyphs, future jobs, active-production cutover, or
+general Unicode behavior. No printer command or print start occurred during
+the later documentation and Git operations.
+
+### Offline Mailmode Field 1 implementation review (2026-11-26)
+
+The following protocol statements were checked by extracting the relevant pages
+from the supplied original PDFs, not only from the searchable text extracts:
+
+- [Interfaceprotocol PDF, p.16](../manual/Manual_LJ3_Interfaceprotocol.pdf):
+   `=MR` takes a string formatted as record number, tab, Field 1, tab, Field 2,
+   etc., followed by CR. The record number is required; ordinary sequence
+   numbers are consecutive and have no leading zeroes, while record number `0`
+   is explicitly an exception. Up to 255 fields are described. A field must not
+   contain `^` unless escaped as `\\^`.
+- [Scriptlanguage PDF, p.21](../manual/Manual_LJ3_Scriptlanguage.pdf): in the
+   `EXTTXT` parameter list, parameter 3 is explicitly “Field number”: `0` is
+   ExtText and `1…x` are Mailmode field numbers. This confirms the interpretation
+   only if the changed editor property is this exact parameter—not merely an
+   unnamed numeric setting. Parameter 5 is Check double prints and is not the
+   field selector.
+- [Interfaceprotocol PDF, p.20](../manual/Manual_LJ3_Interfaceprotocol.pdf):
+   `?SM` returns five values: FIFO depth, entries, last-started print number,
+   StopAt number, and whether that last print finished. The manual recommends
+   issuing `?SM` twice; the second response is current. It notes entries are
+   reduced for a record already removed for printing. The application parser
+   retains any extra response parameters as opaque values.
+- [Interfaceprotocol PDF, p.26](../manual/Manual_LJ3_Interfaceprotocol.pdf):
+   the mailing procedure lists `=MR`, `=CM`, `?SM`, and `!FF`; `!FF` is the
+   documented Mail FIFO clear. The same page warns that record `0` bypasses
+   sequence checks and the last record can be printed again on later PrintGo
+   events when the FIFO is empty. `?SM` reports queue state, not record identity;
+   it cannot prove that a sole entry is the test record or exclude a concurrent
+   producer between inquiry and clear. For that reason the application does
+   not expose or send `!FF`, and the experimental path intentionally leaves a
+   staged record. Any cleanup requires separate approval and an independently
+   isolated procedure; do not start printing.
+- [Interfaceprotocol PDF, p.27](../manual/Manual_LJ3_Interfaceprotocol.pdf):
+   Unicode-font ExternText **or Mailing** data must be hexadecimal-coded. The
+   example maps “Hello World” to `00480065006C006C006F00200057006F0072006C0064`;
+   the passage does not name the encoding or specify the `ISOB_Thai` font.
+- [Scriptlanguage PDF, p.25](../manual/Manual_LJ3_Scriptlanguage.pdf): Unicode
+   fonts are marked with a leading `~` in their name. The reported `ISOB_Thai`
+   name lacks that marker, but this alone does not establish whether the font
+   uses ISO-8859-11, TIS-620, Windows-874, or a proprietary byte mapping.
+- [Hyperterminal PDF, p.8](../manual/ManualHyperterminalLJ3Engl.pdf): the example
+   uses two Mailmode objects with field numbers 1 and 2 and submits a `=MR0`
+   record. It demonstrates the distinct mailing path; it does not establish a
+   Thai encoding.
+
+**Encoding investigation:** the provided PDFs and repository contain no
+`ISOB_Thai` mapping table, font binary, or authoritative crosswalk to
+ISO-8859-11, TIS-620, or Windows-874. In the configured Python 3.11 runtime,
+all three codecs encode this exact phrase to the same bytes:
+`CA D5 E0 B7 D2 B9 A1` (code points
+`U+0E2A U+0E35 U+0E40 U+0E17 U+0E32 U+0E19 U+0E01`). That equality means this
+phrase cannot distinguish those three encodings; it is not evidence that the
+printer font uses any of them. A proprietary mapping also remains possible.
+The implementation labels these bytes a single-byte hypothesis, never a
+confirmed font encoding. If the selected font is in fact Unicode, the manual's
+hex-coded-data rule applies and this raw-byte candidate must not be sent.
+
+**Proposed exact no-print test frame, pending approval:** with the job's
+`EXTTXT` parameter 3 verified as `1`, the candidate record is exactly
+`^0=MR0<TAB><CA D5 E0 B7 D2 B9 A1><CR>`; raw hex preview:
+`5E 30 3D 4D 52 30 09 CA D5 E0 B7 D2 B9 A1 0D`. It contains record number 0,
+one tab, and one field value; it contains no `=ET` and therefore does not
+write the global Field 0 value. The bytes are an unverified hypothesis for the
+reported Thai font. `?SM` is `5E 30 3F 53 4D 0D`; `!FF` is
+`5E 30 21 46 46 0D` and is a destructive whole-FIFO clear, not a harmless
+inquiry. It is not implemented as an application operation.
+
+The new offline Option 12 workflow is intentionally separate from Option 11.
+It requires the operator to confirm the exact job field number and the
+single-byte hypothesis, enter the expected current Field 0 value, and attest
+production stopped, triggers inhibited, sole-writer status, and disabled echo.
+It then reads `?RS`, `?EX`, `?JL`, `?ET`,
+and `?SM` twice; it blocks unless the expected job/readiness pass, `?ET` exactly
+matches the supplied Lot Number, and both FIFO samples are empty. It journals
+intent before one `=MR`, checks `?SM` twice for exactly one entry, and confirms
+`?ET` remains unchanged. It then reports `STAGED_UNVERIFIED` and leaves the
+record in the FIFO. No print-start or clear command is part of this test.
+The count is not a readback of field contents or visual glyph rendering, and
+the application provides no way to clear the queue. An actual staged-record
+test is not approved by the offline work; do not execute Option 12 until
+separate approval is given.
+
+The existing application allowlist did not support `=MR` or `?SM`; offline
+changes add a fixed, experimental Field 1 path while retaining normal ASCII
+`=ET` unchanged and intentionally do not implement `!FF`. The reported physical job/font changes were not
+inspected by this software-only implementation. No printer connection or
+command, FIFO read, FIFO clear, or print start occurred during this work. Physical test
+execution remains pending your approval; successful queue status would still
+not verify Thai rendering or printed output.
 
 ## 5. JET3 protocol and printer job requirements
 
@@ -269,8 +632,8 @@ At the time of the recorded communication test, the application had an additiona
 
 ### C. Separate job-integration test — not part of communication-only test
 
-15. If separately authorized later, use an approved local procedure to create/load a separately named copy of the current job; never edit or overwrite the original Lot `4691125P` job. The supplied manuals do not document the printer UI's copy/Save As workflow. Add/confirm `{e}` / EXTTXT Field Number 0 in that copy, non-Unicode font, and placeholder/offset suitable for seven characters. Keep printing stopped while preparing it.
-16. Job rendering and physical print output remain **NOT TESTED** until separately approved and performed. A communication `VERIFIED` result alone is not evidence that the job uses ExternText or that any physical print is correct.
+15. If a separate job-integration test is authorized, use an approved local procedure and do not overwrite unrelated production jobs. The Thai test below used the operator-confirmed existing `CB-LOT-TEST` job and Field 0 configuration; the supplied manuals do not document the printer UI's copy/Save As workflow.
+16. The combined Thai Lot/color Field 0 rendering and physical print test is recorded below as completed for the stated sample. Print quality and complete character verification remain **IN PROGRESS**. A communication `VERIFIED` result alone is not evidence of physical correctness; retain the physical-output evidence too.
 
 ## 7. Commissioning results record
 
@@ -297,7 +660,17 @@ Untested items remain **NOT TESTED**. Rows 1–4 contain operator-reported netwo
 | 17 | Updated application `?RS` before Lot communication write | Read-only status response decoded; session remains open | TX `b'^0?RS\r'`; RX `b'^0=RS4\t4\t0\t0\t230\t0\r'`; 31.000 ms; Ready for Action, no error | **PASS** | Observed 2026-11-26 at 05:58:20Z. Additional trailing `0` is undocumented/opaque. |
 | 18 | Lot communication write, option 5 | One `=ET4691125P` attempt; no retries; no job or setting changes | TX `b'^0=ET4691125P\r'`; write-submit time 0.000 ms; `SENT - UNVERIFIED` before readback | **PASS — SENT ONCE** | Operator confirmed stopped printing, triggers inhibited, sole ExternText writer, and echo disabled. Existing job unchanged. |
 | 19 | Same-session Lot readback, option 4 | Exact `?ET` match for `4691125P` | TX `b'^0?ET\r'`; RX `b'^0=ET4691125P\r'`; 3016.000 ms; exact match | **PASS — VERIFIED** | Readback used the write's still-open TCP session. No retry. |
-| 20 | Communication milestone closeout | Communication evidence recorded; physical/job work remains separate | `TEST123` and `4691125P` communication readbacks passed; current job and printer settings unchanged | **PASS** | Field 0 integration and physical printing **NOT TESTED**; MES/SQL integration **NOT IMPLEMENTED**. |
+| 20 | Communication milestone closeout | Communication evidence recorded; physical/job work remains separate | `TEST123` and `4691125P` communication readbacks passed; current job and printer settings unchanged | **PASS** | Field 0 integration and physical printing **NOT TESTED**; MES/Lot lookup remains **NOT IMPLEMENTED**. |
+| 21 | Normal `.env` SQL connectivity / object inspection | Connect using configured host, database `CB`, and verify `inkjet` objects | Option 9 used `127.0.0.1:1433`; database `CB`; SQL Server `15.0.2000.5`; schema and all 5 tables/4 views present; no missing objects | **PASS** | Observed 2026-11-26. Localhost is intentional because app and SQL Server share the physical server. No host override or credential display. |
+| 22 | Authorized Option 8 read-only physical status | Read `?RS`, `?EX`, `?JL`; no writes or state changes | `?RS`: nozzle 4, machine 4, error 0, headcover 0, ActSpeed 230; `?EX`: actual 230, inputs 0, max 236, direction 0, PrintGo LOW; `?JL`: `CB-LOT-TEST.job` response with trailing metadata | **PASS — READ ONLY** | Observed 2026-11-26 07:08:39Z at `172.28.169.248:3000`. Raw frames and opaque fields are recorded in “Controlled read-only status and SQL logging validation.” Printing=NO (derived), readiness=YES; trigger inhibition remains UNKNOWN. |
+| 23 | Local and SQL status logging | Persist status snapshot in `inkjet.PrinterStatus` and inquiry evidence in `inkjet.StatusLog` | One local `STATUS_ONLY` record; SQL `PrinterStatus` row confirmed; 11 matching `StatusLog` rows including 3 TX/3 RX/3 timing | **PASS** | Same `.env` configuration and `CB` database; transaction ID `B4D6310F-F37C-49CC-93CB-B8E5D6806C0D`; observed timestamp `2026-11-26 14:08:39.141` Bangkok. |
+| 24 | Option 7 TEST1234 transaction | Expected job/readiness; capture baseline; send once; exact same-session readback; persist evidence | Baseline `4691126P`; one `=ETTEST1234`; readback `TEST1234`; `VERIFIED`/`SUCCESS` | **PASS — VERIFIED** | Transaction `b3baa0b8-68b9-41d7-95ce-30c5c2eb583b`; total 6384.644 ms; SQL `PrinterStatus` 1 row, `StatusLog` 21 events, `TransactionLog` success, `ErrorLog` 0; local intent/final records. See full evidence above. No retry; job/settings unchanged; no printing started. |
+| 25 | Active job External Text field visual check | Confirm the verified value is rendered in the active job's External Text field | Operator confirmed `TEST1234` visible/correct in `CB-LOT-TEST` at 14:20:42 on 2026-11-26 | **PASS — VISUAL FIELD CHECK** | Operator-reported visual check; not a printed-product/physical marking test. No additional printer command. |
+| 26 | Thai `สีเทานก` support assessment | Review font/charset and manual evidence; do not infer encoding or glyph coverage | Initial review found `16x10_SCG` / `ISO1_English` was not established as Thai-capable; manuals require hexadecimal form for Unicode fonts but do not specify Thai encoding or font coverage | **ASSESSMENT COMPLETE — SUPPORT UNVERIFIED** | The initial assessment preceded a separately authorized one-shot hypothesis test. Vendor confirmation of glyph coverage and operational encoding is still required. |
+| 27 | Option 11 one-shot ISO-8859-11 hypothesis | Enforce status/job gates; persist intent; send once; capture exact raw `?ET`; no retry | Baseline `TEST1234`; one frame `5E 30 3D 45 54 CA D5 E0 B7 D2 B9 A1 0D`; raw readback matched exactly; SQL/local journal persisted | **PASS — BYTE MATCH ONLY** | Transaction `964dce5a-2c50-4c75-8e3b-20113277e639`; 6401.396 ms; `VERIFIED` / `EXPERIMENTAL_ISO8859_11_MATCH`; 21 SQL `StatusLog` events, one `PrinterStatus`, zero `ErrorLog`. HMI glyph rendering remains unverified; no retry, job/settings change, or print start. |
+| 28 | Visual Thai External Text field confirmation | Operator inspects HMI/job field and confirms exact intended Thai rendering | Operator reports static Thai rendered in the job editor after creating the new field | **PASS — STATIC EDITOR ONLY** | Does not confirm runtime Mailmode data mapping or dynamic rendering. No physical product printing. |
+| 29 | Offline Option 12 Mailmode implementation and frame tests | Verify original PDF command semantics, exact candidate frame, Field 0 preservation, FIFO checks, and that no FIFO-clear operation is exposed | Original PDFs checked; candidate frame `5E 30 3D 4D 52 30 09 CA D5 E0 B7 D2 B9 A1 0D`; complete offline suite: 104 tests passed | **PASS — OFFLINE ONLY** | No real printer connection/command, FIFO access, `!FF`, or printing during that offline work. Mailmode was not used for the later confirmed Field 0 solution. |
+| 30 | Combined Lot Number + Thai color physical print using Field 0 | Existing safety preflight; one ISO-8859-11 `=ET`; same-session raw `?ET` equality; HMI and paper inspection | `4691125P สีเทานกพิราบ`; TX/RX payloads identical; correct mixed text shown on HMI; physical Thai print demonstrated | **PASS — PHYSICAL TEST; QUALITY FOLLOW-UP OPEN** | Operator-confirmed 2026-11-26. Job `CB-LOT-TEST`; one External Text Field 0; `ISOB_Thai`; 24x20; placeholder length 30. Exactly one write. No Mailmode, `=MR`, or FIFO. Print quality and complete character verification need improvement. |
 
 ## 8. Troubleshooting and limitations
 
@@ -312,6 +685,6 @@ Untested items remain **NOT TESTED**. Rows 1–4 contain operator-reported netwo
 | ExternText read failure | Check TCP and printer state, then inspect the raw response. Unsupported `?ET` is one possibility, not a conclusion from a timeout alone. |
 | Readback mismatch | Compare exact spaces and text; inspect competing writers, job font, Field 0, offsets, and placeholders. A successful readback does not establish correct physical output. |
 
-Known limitations: no retries, transaction IDs, concurrency protection, automatic production/Lot workflow, SQL, job upload, printer state interlock, or physical print confirmation. Unicode writes are blocked. Fixed-block padded replies are unsupported. `?ET` firmware support, active-print update behavior, job/power-cycle persistence, print cutover timing, and physical output require separate on-site/vendor confirmation.
+Known limitations: no automatic retries, no cross-process/external-writer concurrency exclusion, no automatic production/Lot workflow, no job upload, and no printer-state interlock. One combined Thai Field 0 value was confirmed on the HMI and printed on paper; print quality and complete physical character verification remain open. SQL audit persistence is implemented; see [DB_INTEGRATION.md](DB_INTEGRATION.md). The normal Unicode write path remains blocked. Options 11 and 12 are separate experimental paths and were not used for the selected test; neither is a general Unicode feature. Fixed-block padded replies are unsupported. `?ET` firmware support, active-print update behavior, job/power-cycle persistence, print cutover timing, and results for other Thai text require separate confirmation.
 
 For the project’s existing procedure and evidence basis, see [README.md](../README.md), [docs/COMMISSIONING.md](COMMISSIONING.md), [docs/PROJECT_CONTEXT.md](PROJECT_CONTEXT.md), and the PDFs/extracts under [manual](../manual) and [docs/manual-extracted](manual-extracted).

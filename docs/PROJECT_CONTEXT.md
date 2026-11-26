@@ -4,15 +4,26 @@
 
 The exclusive project root is the currently opened workspace, `D:\AI\Inkjet_LJ3`.
 The intended business flow is operator Lot entry -> product/color lookup -> this
-Python 3.11 application -> Ethernet -> Leibinger Jet3 print-job text.
-Phase 1 is a manual communication/test tool only. No SQL, Lot monitoring,
-Kepware, OPC UA, Modbus, or third-party gateway is needed for the documented
-interface. No printer was contacted during development.
+Python 3.11 application -> Ethernet -> Leibinger Jet3 print-job text. The
+original Phase 1 milestone was a manual communication/test tool. The current
+application additionally provides an automatic one-shot ExternText transaction,
+read-only status aggregation, SQL Server audit persistence, and local recovery.
+Lot/product lookup, Kepware, OPC UA, Modbus, and third-party gateways are not
+implemented or required by the documented printer interface.
 
-The future application updates ExternText in an existing printer job; it does
-not create/upload a new job for each Lot. The server owns Lot/product/color
-business logic; the Jet3 receives only text and has no SQL connection. A
-conceptual job name such as TILE_COLOR does not establish the actual site job.
+The application updates ExternText in an existing printer job; it does not
+create/upload a new job for each Lot. Any future server-side Lot/product/color
+business logic remains separate; the Jet3 receives text and has no SQL
+connection. A conceptual job name such as TILE_COLOR does not establish the
+actual site job.
+
+**Latest physical validation (2026-11-26):** the operator confirmed a combined
+Lot/color value printed on paper from `CB-LOT-TEST` using one External Text
+Field 0, `ISOB_Thai`, 24x20, placeholder length 30, and a single ISO-8859-11
+`=ET` write. Raw `?ET` bytes matched exactly. Mailmode and FIFO were not used.
+Print quality and complete physical character verification remain in progress;
+this evidence applies to the tested value/configuration only. See
+`JET3_ONSITE_COMMISSIONING.md` for TX/RX evidence.
 
 ## Site settings and evidence categories
 
@@ -28,19 +39,18 @@ it does not bind or reconfigure a network adapter.
 | --- | --- |
 | Documented protocol | ASCII address 0, CR framing, `=ET`/`?ET`, Field 0 semantics, powered-on state, and font-dependent encoding; see manual references below. |
 | Our commissioning safety policy | For a physical communication write, stop printing, inhibit triggers, ensure there is no competing ExternText writer, and explicitly confirm SEND. This is not a documented LJ3 stop-printing requirement. Field 0 integration is a separate print-job test. |
-| Unknown physical behavior | Active-print text cutover, affected product, buffering, firmware readback behavior, and persistence require device/vendor verification. |
+| Unknown physical behavior | Active-print text cutover, affected product, buffering, firmware readback behavior, and persistence require device/vendor verification. One operator-confirmed Thai Field 0 print test passed, but print quality and complete physical character verification remain in progress. |
 
 The manuals do not state that `=ET` is permitted only when printing is stopped.
 The Phase 1 guard must not be treated as a permanent production requirement.
 Future automatic Lot changes still require a verified production transition
 procedure before the commissioning guard is revised.
 
-Initial inventory: `.venv/`, `manual/`, `.env`, `.gitignore`,
-`requirements.txt`, `.git/`. The existing environment contains settings from
-other integrations; their values are not used, displayed, or copied. Preserve
-the existing `.env` and dependency list. The Phase 1 runtime uses the Python
-standard library. PDF extraction utilities installed in `.venv` are development
-tools only.
+The local `.env` contains settings for multiple integrations. LJ3 configuration
+uses only `LJ3_*`; SQL integration uses the existing `SQL_*` keys and never
+prints credentials. Preserve unrelated settings. Core printer communication
+uses the standard library; optional SQL support is declared separately in
+`requirements-mssql.txt`. PDF extraction utilities are development-only.
 
 ## Source manuals
 
@@ -136,12 +146,14 @@ This is not a UTF-8 socket payload. Unicode font names begin with `~` (script
 p.25). Supplementary characters, surrogates, Unicode readback representation,
 and how the 256-character limit applies to hex expansion are not specified.
 
-Phase 1 supports printable ASCII only, with documented caret escaping. It
-rejects CR, LF, TAB, controls, DEL, non-ASCII, and literal backslashes (literal
-backslash escaping for ET is not specified). It additionally caps the encoded
-payload at 256 bytes, a conservative application restriction for escaped
-carets. It never guesses or changes the printer font. Unicode sending is
-deferred pending device/vendor confirmation.
+The normal text path supports printable ASCII only, with documented caret
+escaping. It rejects CR, LF, TAB, controls, DEL, non-ASCII, and literal
+backslashes (literal backslash escaping for ET is not specified). It additionally
+caps the encoded payload at 256 bytes, a conservative application restriction
+for escaped carets. A separate experimental ISO-8859-11 encoder was used for
+the physical test described at the end of this document; that one confirmed
+`ISOB_Thai` Field 0 configuration does not establish a general Unicode mode or
+encoding guarantee. The application does not change the printer font.
 
 ### Responses, errors, and connection behavior
 
@@ -236,8 +248,9 @@ README.md       launch and offline test instructions
 - The 10-second client default is informed by the measured 3061.884 ms `?ET`
   response. Determine connection limits and rapid reconnect handling before
   production automation.
-- Validate the physical output and double-print-check configuration. ET
-  readback alone cannot prove that the correct object or product was printed.
+- Improve print quality and complete physical character verification for the
+  confirmed Thai test. ET readback alone cannot prove that the correct object
+  or product was printed; the paper test is separately operator-confirmed.
 
 ## Future Phase 2 (not implemented)
 
@@ -303,9 +316,10 @@ input preserves it. Changing the target clears it.
 Free Text identifies non-ASCII input as Unicode / Experimental and blocks it
 before confirmation or connection. Reinspection of interface p.27 and script
 p.25 confirms font/job-dependent hexadecimal transmission, not UTF-8, but does
-not resolve Unicode length limits or readback representation. No Unicode
-encoder or send path is enabled. Thai printing remains a separate controlled
-physical investigation after ASCII acceptance. No SQL, automatic Lot monitor,
+not resolve Unicode length limits or readback representation. No general
+Unicode encoder or send path is enabled. Thai printing was still a separate
+controlled physical investigation at that point in the historical record; the
+specific later Field 0 test is documented below. No SQL, automatic Lot monitor,
 Kepware, OPC UA, Modbus, or automatic print start/stop commands were added.
 
 Validation: the full offline suite (`python -m unittest discover -s tests -v`)
@@ -360,8 +374,75 @@ Response time was 3016.000 ms; expected and returned values matched exactly:
 **VERIFIED**. No retry, job change, setting change, restart, or print start
 occurred.
 
-Communication tests are complete for the tested ASCII values `TEST123` and
-`4691125P`. Field 0/job integration and physical printing remain **NOT TESTED**.
-MES integration, SQL lookup, and automatic Lot monitoring remain **NOT
-IMPLEMENTED**; the validated application is still an operator-driven manual
-terminal client.
+At this communication milestone, tests were complete for the ASCII values
+`TEST123` and `4691125P`, while Field 0/job integration and physical printing
+remained **NOT TESTED**; the later Thai test below supersedes that status for
+its specific sample. MES/product lookup and automatic Lot monitoring remain
+**NOT IMPLEMENTED**.
+
+## Automatic transaction and SQL Server implementation (26 November 2026)
+
+Menu option 7 now performs an automatic one-shot transaction: validate the text;
+read-only `?RS`, `?EX`, and `?JL` checks; baseline `?ET`; durable write intent;
+one `=ET`; same-session exact `?ET` verification; and structured result/error
+logging. It requires Ready for Action (machine state 4), error 0, and PrintGo
+low. Unknown/invalid status is never treated as READY. Stopped production,
+trigger inhibition, absence of an external writer, and `!EM` echo state cannot
+all be queried and remain operator attestation/UNKNOWN. The process-wide
+per-printer lock only serializes this application's writes/transactions; it
+cannot exclude external clients. Options 8, 9, and 10 provide read-only status,
+SQL inspection, and idempotent local-journal recovery respectively.
+
+The local append-only journal is `logs/pending_transactions.jsonl`. It is
+fsynced before a write; a failed write-intent journal operation blocks the
+printer write. Recovery persists audit data only. An interrupted write intent
+is represented as `WRITE_OUTCOME_UNKNOWN`; it never causes a printer retry.
+
+The approved SQL Server `10.28.255.19`, database `CB`, reported version
+`15.0.2000.5` (SQL Server 2019). Read-only checks confirmed sysadmin,
+`CREATE TABLE`, `CREATE VIEW`, and `ALTER ANY SCHEMA` permissions. The
+`inkjet` schema was initially absent. Migrations created the five approved
+tables (`PrinterMaster`, `PrinterStatus`, `StatusLog`, `TransactionLog`,
+`ErrorLog`) and four views (`vw_PrinterStatus`, `vw_TransactionHistory`,
+`vw_ErrorHistory`, `vw_DailySummary`). Live integration testing exercised
+parameterized inserts, view reads, idempotent journal recovery, and cleanup of
+its own synthetic rows. No unrelated objects were modified or deleted.
+
+The existing local `.env` has `SQL_SERVER=127.0.0.1`; this is intentional
+because the application and SQL Server run on the same physical server
+`10.28.255.19`. Credentials were not printed or changed. Normal menu SQL
+inspection and persistence were later verified through localhost. A separately
+authorized read-only Option 8 status check was performed on the physical printer
+and its row/events were verified in SQL; no `=ET` write or Option 7 was run.
+Full implementation and the result evidence are in
+[DB_INTEGRATION.md](DB_INTEGRATION.md) and
+[JET3_ONSITE_COMMISSIONING.md](JET3_ONSITE_COMMISSIONING.md). At that point in
+the history, job integration and physical printing remained untested. The
+later Thai Field 0 physical test below supersedes that status for its specific
+job/font/text combination; any new production step still requires separate
+approval.
+
+## Combined Lot Number and Thai color Field 0 physical test (26 November 2026)
+
+The operator confirmed the JET3 job configuration: `CB-LOT-TEST`, one External
+Text Field 0 with character set `ISOB_Thai`, font `24x20`, and placeholder
+length `30`. The selected protocol was `=ET` with ISO-8859-11 encoding. The
+test value was `4691125P สีเทานกพิราบ`. No Mailmode, `=MR`, or FIFO command was
+used.
+
+The write was sent exactly once after the existing safety preflight. The
+operator confirmed successful TCP communication, exact raw write/readback
+payload match, correct mixed English/numeric/Thai display on the HMI, and
+physical Thai printing on paper. Exact frames:
+
+- `=ET` TX: `5E 30 3D 45 54 34 36 39 31 31 32 35 50 20 CA D5 E0 B7 D2 B9 A1 BE D4 C3 D2 BA 0D`
+- `?ET` TX: `5E 30 3F 45 54 0D`
+- Raw `?ET` RX: `5E 30 3D 45 54 34 36 39 31 31 32 35 50 20 CA D5 E0 B7 D2 B9 A1 BE D4 C3 D2 BA 0D`
+
+**Result:** `VERIFIED` by exact raw payload match; HMI rendering and printing
+on paper were operator-confirmed. Print quality and complete physical
+character verification still require improvement. The evidence supports this
+specific Field 0 job/font/value combination only; it does not validate
+arbitrary Thai strings, active-production cutover, or general Unicode support.
+No printer command, application change, or print start occurred during the
+subsequent documentation and Git work.
