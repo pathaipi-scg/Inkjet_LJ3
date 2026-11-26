@@ -13,6 +13,9 @@ complete character verification still need improvement. Core communication
 uses the standard library; database support requires `pyodbc` and a Microsoft
 SQL Server ODBC driver. Lot/product lookup is not implemented.
 
+For the complete protocol, transport, encoding, safety, SQL audit, test, and
+commissioning details, see the [JET3 Communication Reference](docs/JET3_COMMUNICATION_REFERENCE.md).
+
 ## Run
 
 From this workspace in PowerShell:
@@ -63,8 +66,11 @@ the printer. A successful write is labelled **SENT - UNVERIFIED** because ordina
 LJ3 commands have no guaranteed acknowledgement. Action 4 does not resend text.
 
 Use **7** for one automatic transaction: enter printable ASCII and confirm the
-physical safeguards once. It checks status/readiness and baseline before the
-single write, then verifies an exact same-session readback. Legacy actions **3**
+trigger-inhibition and echo prompts. The current Option 7 prompt does not
+explicitly ask the operator to confirm that production is stopped; do not treat
+the ready-state gate as that confirmation. Resolve this safety-prompt gap before
+using Option 7 for a physical write. It checks status/readiness and baseline
+before the single write, then verifies an exact same-session readback. Legacy actions **3**
 and **5** still provide manual single writes followed separately by **4**; they
 do not include the full status/baseline transaction. Option **8** is read-only
 status. Other ASCII examples include `RED`, `BLUE`, `COLOR A`, and `LOT260917`.

@@ -89,6 +89,57 @@ class ClientTests(unittest.TestCase):
         self.assertTrue(any(event.kind == "TIMING" and event.elapsed_ms is not None for event in events))
         self.assertTrue(all(event.timestamp.endswith("+00:00") for event in events))
 
+    def test_experimental_iso8859_11_transmit_and_raw_readback_same_session(self):
+        payload = bytes.fromhex("CA D5 E0 B7 D2 B9 A1")
+        raw_response = b"^0=ET" + payload + b"\r"
+        sock = FakeSocket([raw_response[:9], raw_response[9:]])
+        client, _, events = self.make_client(sock)
+        client.connect()
+        wire = client.set_external_text_experimental_iso8859_11(
+            "สีเทานก", write_safety_confirmed=True,
+            command_echo_disabled_confirmed=True)
+        raw, returned = client.get_external_text_experimental_raw()
+        self.assertEqual(wire, b"^0=ET" + payload + b"\r")
+        self.assertEqual(sock.sent, [wire, b"^0?ET\r"])
+        self.assertEqual(raw, raw_response)
+        self.assertEqual(returned, payload)
+        self.assertFalse(sock.closed)
+        self.assertEqual(sum(event.kind == "TX" and event.data == wire for event in events), 1)
+        self.assertTrue(any(event.kind == "RX" and event.data == raw_response[9:] for event in events))
+
+    def test_experimental_encoding_rejects_missing_safety_and_never_connects(self):
+        client, factory, _ = self.make_client(FakeSocket())
+        with self.assertRaisesRegex(ValueError, "safety"):
+            client.set_external_text_experimental_iso8859_11("สีเทานก")
+        factory.assert_not_called()
+
+    def test_experimental_mailmode_field1_sends_once_on_existing_session(self):
+        sock = FakeSocket()
+        client, factory, events = self.make_client(sock)
+        with self.assertRaisesRegex(ValueError, "confirmations"):
+            client.send_experimental_thai_mailmode_field1("สีเทานก")
+        factory.assert_not_called()
+        client.connect()
+        wire = client.send_experimental_thai_mailmode_field1(
+            "สีเทานก", production_stopped_confirmed=True,
+            triggers_inhibited_confirmed=True, sole_writer_confirmed=True,
+            command_echo_disabled_confirmed=True,
+            empty_fifo_preflight_confirmed=True)
+        self.assertEqual(wire, bytes.fromhex("5E 30 3D 4D 52 30 09 CA D5 E0 B7 D2 B9 A1 0D"))
+        self.assertEqual(sock.sent, [wire])
+        self.assertEqual(factory.call_count, 1)
+        self.assertFalse(sock.closed)
+        self.assertEqual(sum(event.kind == "TX" and event.data == wire for event in events), 1)
+
+    def test_mail_status_is_read_only_and_fifo_clear_is_not_exposed(self):
+        one = b"^0=SM256\t1\t0\t0\t0\r"
+        sock = FakeSocket([one])
+        client, _, _ = self.make_client(sock)
+        client.connect()
+        self.assertEqual(client.get_mail_status().fifo_entries, 1)
+        self.assertEqual(sock.sent, [b"^0?SM\r"])
+        self.assertFalse(hasattr(client, "flush_mail_fifo_for_experiment"))
+
     def test_fragmentation_and_unsolicited_frames(self):
         sock = FakeSocket([b"^0=RS2\t5\t0\t0\t0\r\n^0=E", b"TBLUE\r\n"])
         client, _, events = self.make_client(sock)
@@ -112,6 +163,17 @@ class ClientTests(unittest.TestCase):
         self.assertEqual(status.additional_parameters, (b"0",))
         self.assertFalse(sock.closed)
         self.assertTrue(any(event.elapsed_ms is not None for event in events if event.kind == "TIMING"))
+
+    def test_extern_state_and_loaded_job_are_documented_read_only_queries(self):
+        sock = FakeSocket([b"^0=EX10\t0\t120\t1\t0\t0\t0\r",
+                           b"^0=JLFFSDISK\\JOBS\\TEST.JOB\r"])
+        client, _, _ = self.make_client(sock)
+        state = client.get_extern_state()
+        job = client.get_loaded_job()
+        self.assertEqual(state.printgo, 0)
+        self.assertEqual(job, "FFSDISK\\JOBS\\TEST.JOB")
+        self.assertEqual(sock.sent, [b"^0?EX\r", b"^0?JL\r"])
+        self.assertFalse(sock.closed)
 
     def test_status_error_is_returned_for_display(self):
         client, _, _ = self.make_client(FakeSocket([b"^0=RS4\t4\t123\t0\t230\r"]))

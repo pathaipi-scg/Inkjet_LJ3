@@ -1,0 +1,2 @@
+# Optional SQL Server integration dependency; requires Microsoft ODBC Driver 17 or 18.
+pyodbc>=5.2,<6

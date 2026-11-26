@@ -25,6 +25,9 @@ Print quality and complete physical character verification remain in progress;
 this evidence applies to the tested value/configuration only. See
 `JET3_ONSITE_COMMISSIONING.md` for TX/RX evidence.
 
+For developer and AI-agent implementation guidance, see the standalone
+[JET3 Communication Reference](JET3_COMMUNICATION_REFERENCE.md).
+
 ## Site settings and evidence categories
 
 The first physical test uses Server / Machine NIC -> factory Machine network

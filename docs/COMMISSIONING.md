@@ -1,5 +1,14 @@
 # Phase 1 commissioning: manual, stopped-production test
 
+This document records the earlier manual commissioning sequence and physical
+evidence; it is not the current menu map. Current menu option 7 runs an
+automatic transaction, option 8 is read-only status, option 9 inspects the
+configured database, and option 10 performs SQL-only local-journal recovery.
+For current implementation details see [DB_INTEGRATION.md](DB_INTEGRATION.md).
+No printer command was sent during the subsequent software/database work. Any
+new physical test, especially option 7 or a write, requires separate explicit
+approval.
+
 This procedure is for an operator at the intended LJ3. A read-only status and
 ExternText communication diagnostic and exact `TEST123` readback have been
 completed; physical job rendering/print output and production acceptance remain
@@ -79,11 +88,11 @@ remain unknown. Preserve this distinction when designing future Lot updates.
    Expected ordinary framing is `^0=ET<value><CR>`; a length-prefixed response
    is also accepted. Old firmware may not support `?ET`. A timeout means no
    usable response, not proof of an empty value or unsupported command.
-5. Optionally choose **7 Read Printer Status** to send read-only `?RS`. The
-   display labels the five documented `=RS` parameters (nozzle, machine state,
-   error, headcover, ActSpeed) and shows any additional parameters as opaque
-   bytes without assigning meanings. Raw RX bytes/hex and elapsed response
-   time are logged. This does not change printer state.
+5. In the current menu, choose **8 Read Printer Status** to perform read-only
+   `?RS`, `?EX`, and `?JL` inquiries. The display labels documented fields,
+   preserves extra parameters as opaque values, and reports unobservable
+   conditions as UNKNOWN. The option does not change printer state. The earlier
+   physical test record below used the then-current status option 7.
 6. Choose **3 Send Test Text (TEST123)**. No text entry is needed. Check the
    target, `Text to send: TEST123`, and byte preview. The entire frame is:
 

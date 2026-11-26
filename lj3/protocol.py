@@ -1,6 +1,7 @@
-"""Pure protocol functions derived from the supplied interface manual, pp.4,7,8,11.
+"""Pure protocol functions derived from the supplied JET3 manuals.
 
-Phase 1 deliberately supports only printable ASCII ExternText and address '0'.
+Normal ExternText remains printable ASCII; experimental Mailmode functions are
+separate, fixed to one Thai Field 1 hypothesis, and never enter the ASCII path.
 """
 
 from dataclasses import dataclass
@@ -25,15 +26,69 @@ def encode_external_text(text: str) -> bytes:
     return payload
 
 
+def encode_experimental_iso8859_11(text: str) -> bytes:
+    """Encode a one-off experimental hypothesis; this is not a supported printer mode."""
+    if not isinstance(text, str) or not 1 <= len(text) <= 256:
+        raise ValueError("Experimental ExternText must contain 1-256 characters.")
+    try:
+        payload = text.encode("iso8859_11", errors="strict")
+    except UnicodeEncodeError as exc:
+        raise ValueError("Text is not representable in experimental ISO-8859-11.") from exc
+    if len(payload) > 256 or any(value < 0x20 or value == 0x7F for value in payload):
+        raise ValueError("Experimental ISO-8859-11 payload contains a protocol control or exceeds 256 bytes.")
+    return payload
+
+
+def build_experimental_iso8859_11_frame(text: str) -> bytes:
+    """Build a raw ISO-8859-11 frame without enabling it in the normal ASCII allowlist."""
+    return b"^0=ET" + encode_experimental_iso8859_11(text) + b"\r"
+
+
+EXPERIMENTAL_THAI_FIELD1_TEXT = "สีเทานก"
+
+
+def encode_experimental_thai_field1_iso8859_11_hypothesis(text: str) -> bytes:
+    """Return the one-byte hypothesis for ISOB_Thai; font mapping is unverified."""
+    if text != EXPERIMENTAL_THAI_FIELD1_TEXT:
+        raise ValueError("The experimental Mailmode path is limited to the fixed Thai test text.")
+    return encode_experimental_iso8859_11(text)
+
+
+def build_experimental_thai_mailmode_field1_frame(text: str) -> bytes:
+    """Build one record-0, one-field =MR frame; it does not touch =ET/Field 0."""
+    payload = encode_experimental_thai_field1_iso8859_11_hypothesis(text)
+    if any(value in payload for value in (0x09, 0x0A, 0x0D, 0x5E)):
+        raise ValueError("Experimental Mailmode field contains a delimiter, terminator, or caret.")
+    return b"^0=MR0\t" + payload + b"\r"
+
+
+def decode_experimental_iso8859_11_response(raw: bytes) -> bytes:
+    """Validate an =ET response envelope and return its uninterpreted payload bytes."""
+    if raw.endswith(b"\r\n"):
+        raw = raw[:-1]
+    if not raw.startswith(b"^") or not raw.endswith(b"\r"):
+        raise ProtocolError("Expected a complete experimental ExternText frame ending in CR.")
+    body = raw[1:-1]
+    if len(body) >= 8 and body[:5].isdigit():
+        size = int(body[:5])
+        body = body[5:]
+        if size != len(body) + 1:
+            raise ProtocolError("Experimental response length header does not match bytes through CR.")
+    if not body.startswith(b"0=ET"):
+        raise ProtocolError("Expected response address 0 and command =ET.")
+    payload = body[4:]
+    if len(payload) > 512:
+        raise ProtocolError("Experimental ExternText readback exceeds the supported response size.")
+    return payload
+
+
 def build_command(command: str, text: str | None = None) -> bytes:
     """Allowlist prevents the manual tool becoming an arbitrary printer console."""
-    if command == "?ET" and text is None:
-        return b"^0?ET\r"
-    if command == "?RS" and text is None:
-        return b"^0?RS\r"
+    if command in {"?ET", "?RS", "?EX", "?JL", "?SM"} and text is None:
+        return b"^0" + command.encode("ascii") + b"\r"
     if command == "=ET" and text is not None:
         return b"^0=ET" + encode_external_text(text) + b"\r"
-    raise ValueError("Phase 1 permits =ET with text, or ?ET/?RS without parameters.")
+    raise ValueError("Supported commands are =ET with text, or ?ET/?RS/?EX/?JL without parameters.")
 
 
 @dataclass(frozen=True)
@@ -103,6 +158,45 @@ class PrinterStatus:
     additional_parameters_raw: bytes = b""
 
 
+@dataclass(frozen=True)
+class ExternState:
+    """Only documented =EX fields are decoded; reserved fields stay opaque."""
+
+    actual_speed: Decimal
+    inputs: int
+    max_speed: Decimal
+    direction: int
+    printgo: int
+    additional_parameters: tuple[bytes, ...] = ()
+
+
+@dataclass(frozen=True)
+class MailStatus:
+    """The five documented =SM fields and any unrecognized trailing values."""
+
+    fifo_depth: int
+    fifo_entries: int
+    last_started_print_no: int
+    stop_at_no: int
+    last_started_print_no_was_finished: int
+    additional_parameters: tuple[bytes, ...] = ()
+
+
+def decode_mail_status(frame: Frame) -> MailStatus:
+    """Decode the manual's five integer =SM parameters without guessing extras."""
+    if frame.command != "=SM":
+        raise ProtocolError("Expected =SM Mail Status.")
+    fields = re.split(rb"[\t ]+", frame.payload.strip())
+    if len(fields) < 5 or any(re.fullmatch(rb"[0-9]+", item) is None for item in fields[:5]):
+        raise ProtocolError("Malformed =SM status: expected five nonnegative decimal parameters.")
+    values = tuple(int(item) for item in fields[:5])
+    fifo_depth, fifo_entries, last_started, stop_at, finished = values
+    if fifo_depth <= 0 or fifo_entries > fifo_depth:
+        raise ProtocolError("Malformed =SM status: FIFO entry count is outside its reported depth.")
+    return MailStatus(fifo_depth, fifo_entries, last_started, stop_at, finished,
+                      tuple(fields[5:]))
+
+
 def decode_printer_status(frame: Frame) -> PrinterStatus:
     """Decode the five manual-defined fields; retain extras without interpretation."""
     if frame.command != "=RS":
@@ -125,6 +219,39 @@ def decode_printer_status(frame: Frame) -> PrinterStatus:
     raw_tail = frame.payload[fields[4].end():] if len(fields) > 5 else b""
     return PrinterStatus(nozzle_state, machine_state, error, headcover, act_speed,
                          additional, raw_tail)
+
+
+def decode_extern_state(frame: Frame) -> ExternState:
+    """Decode the documented =EX fields, including the manual's Par6 PrintGo."""
+    if frame.command != "=EX":
+        raise ProtocolError("Expected =EX extern-state response.")
+    fields = re.split(rb"[\t ]+", frame.payload.strip())
+    if len(fields) < 6:
+        raise ProtocolError("Malformed =EX status: expected documented Par1-Par4 and Par6 fields.")
+    try:
+        speed = Decimal(fields[0].decode("ascii"))
+        inputs = int(fields[1])
+        max_speed = Decimal(fields[2].decode("ascii"))
+        direction = int(fields[3])
+        printgo = int(fields[5])
+    except (UnicodeDecodeError, InvalidOperation, ValueError) as exc:
+        raise ProtocolError("Malformed =EX status: invalid documented numeric parameter.") from exc
+    if not speed.is_finite() or not max_speed.is_finite():
+        raise ProtocolError("Malformed =EX status: speed must be finite.")
+    if inputs < 0 or inputs > 2**17 or direction not in (0, 1) or printgo not in (0, 1):
+        raise ProtocolError("Malformed =EX status: documented field is outside its valid range.")
+    return ExternState(speed, inputs, max_speed, direction, printgo,
+                       tuple(fields[6:]))
+
+
+def decode_loaded_job(frame: Frame) -> str:
+    """Decode the read-only response to ?JL; never builds the =JL load command."""
+    if frame.command != "=JL":
+        raise ProtocolError("Expected =JL loaded-job response.")
+    try:
+        return frame.payload.decode("ascii")
+    except UnicodeDecodeError as exc:
+        raise ProtocolError("Loaded-job response is not ASCII.") from exc
 
 
 class FrameParser:

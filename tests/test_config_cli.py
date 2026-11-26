@@ -3,12 +3,13 @@ import io
 from pathlib import Path
 import tempfile
 import unittest
-from unittest.mock import call, patch
+from unittest.mock import ANY, Mock, call, patch
+from types import SimpleNamespace
 
 from lj3.__main__ import main
 from lj3.client import CommunicationError, LJ3Client, ResponseTimeout, Verification
 from lj3.protocol import ProtocolError
-from lj3.protocol import PrinterStatus
+from lj3.protocol import ExternState, PrinterStatus
 from decimal import Decimal
 from test_client import FakeSocket
 from lj3.config import PROJECT_ROOT, Settings, load_settings
@@ -61,6 +62,9 @@ class CLITests(unittest.TestCase):
                 client_class.return_value.get_external_text.return_value = "EXISTING"
                 client_class.return_value.get_printer_status.return_value = PrinterStatus(
                     4, 4, 0, 0, Decimal("230"), (b"0",))
+                client_class.return_value.get_extern_state.return_value = ExternState(
+                    Decimal("0"), 0, Decimal("120"), 1, 0)
+                client_class.return_value.get_loaded_job.return_value = "TEST.JOB"
                 client_class.return_value.connect.side_effect = connect_error
                 client_class.return_value.set_external_text.side_effect = send_error
                 if isinstance(verification, Exception):
@@ -119,7 +123,11 @@ class CLITests(unittest.TestCase):
         self.assertIn("Target: 127.0.0.1:3000\nStatus: disconnected", output)
         self.assertIn("1  Test TCP Connection\n2  Read Current ExternText\n"
                       "3  Send Test Text (TEST123)\n4  Verify Last Sent Text\n"
-                      "5  Send Free Text\n6  Configure Target\n7  Read Printer Status\n0  Quit", output)
+                      "5  Send Free Text\n6  Configure Target\n"
+                      "7  Automatic ExternText Transaction\n8  Read Printer Status\n"
+                      "9  Database Status\n10 Recover Local Transaction Log\n"
+                      "11 Experimental Thai ISO-8859-11 =ET (UNVERIFIED)\n"
+                      "12 Experimental Thai Mailmode Field 1 (UNVERIFIED)\n0  Quit", output)
 
     def test_tcp_test_only_connects_and_reports_result(self):
         for error in (None, CommunicationError("refused"), ValueError("missing target")):
@@ -139,11 +147,84 @@ class CLITests(unittest.TestCase):
         self.assertIn("Current Jet3 ExternText:\nEXISTING", output)
 
     def test_status_menu_displays_documented_fields_and_opaque_extras(self):
-        client, output = self.run_menu(["7", "0"])
+        with patch("lj3.transaction.TransactionService.record_status_snapshot",
+               return_value=Mock(journaled=False)):
+            client, output = self.run_menu(["8", "0"])
         client.get_printer_status.assert_called_once_with()
+        client.get_extern_state.assert_called_once_with()
+        client.get_loaded_job.assert_called_once_with()
         self.assertIn("Machine state: 4 (Ready for Action)", output)
         self.assertIn("ActSpeed: 230 m/min", output)
         self.assertIn("Additional undocumented parameters (opaque): (b'0',)", output)
+        self.assertIn("Print triggers inhibited: UNKNOWN", output)
+
+    def test_option_seven_runs_one_automatic_transaction_and_persists_result(self):
+        result = SimpleNamespace(transaction_id="tx-1", outcome="VERIFIED", category="SUCCESS",
+                                 requested_text="LOT-123", baseline_text="OLD", readback_text="LOT-123",
+                                 message="Exact match", elapsed_ms=12.5, snapshot=None, journaled=True,
+                                 journal_record=lambda: {"transaction_id": "tx-1"})
+        with patch("lj3.transaction.TransactionService.execute", return_value=result) as execute, \
+             patch("lj3.db.SqlRepository.persist_record") as persist:
+            client, output = self.run_menu(["7", "LOT-123", "SEND", "0"])
+        execute.assert_called_once_with(
+            client, "LOT-123", write_safety_confirmed=True,
+            command_echo_disabled_confirmed=True,
+            expected_job_name="CB-LOT-TEST.job",
+            operator_confirmations=("external triggers inhibited",
+                                    "application is the only ExternText writer",
+                                    "!EM command echo disabled"))
+        persist.assert_called_once()
+        self.assertIn("Outcome: VERIFIED", output)
+        self.assertIn("VERIFIED - exact same-session readback", output)
+
+    def test_option_eleven_isolated_thai_experiment_displays_hex_and_persists(self):
+        result = SimpleNamespace(transaction_id="thai-tx", outcome="VERIFIED",
+                                 category="EXPERIMENTAL_ISO8859_11_MATCH",
+                                 requested_text="สีเทานก", baseline_text="4691126P",
+                                 readback_text="สีเทานก", message="byte match",
+                                 elapsed_ms=99.0, snapshot=None, journaled=True,
+                                 journal_record=lambda: {"transaction_id": "thai-tx"})
+        confirmations = ("production stopped", "external triggers inhibited",
+                         "application is the only ExternText writer", "!EM command echo disabled")
+        with (patch("lj3.transaction.TransactionService.execute_experimental_iso8859_11",
+                    return_value=result) as execute,
+              patch("lj3.db.SqlRepository.persist_record") as persist):
+            _, output = self.run_menu(["11", "SEND", "0"])
+        execute.assert_called_once_with(
+            ANY, write_safety_confirmed=True,
+            command_echo_disabled_confirmed=True,
+            operator_confirmations=confirmations)
+        persist.assert_called_once()
+        self.assertIn("ISO-8859-11 payload hex: CA D5 E0 B7 D2 B9 A1", output)
+        self.assertIn("Complete =ET TCP frame hex: 5E 30 3D 45 54 CA D5 E0 B7 D2 B9 A1 0D", output)
+        self.assertIn("BYTE MATCH ONLY", output)
+
+    def test_option_twelve_previews_mailmode_field1_and_requires_explicit_acknowledgments(self):
+        result = SimpleNamespace(transaction_id="mail-tx", outcome="STAGED_UNVERIFIED",
+                     category="EXPERIMENTAL_MAILMODE_FIELD1_STAGED",
+                                 requested_text="สีเทานก", baseline_text="4691125P",
+                     readback_text="4691125P", message="staged; FIFO untouched",
+                                 elapsed_ms=101.0, snapshot=None, journaled=True,
+                                 journal_record=lambda: {"transaction_id": "mail-tx"})
+        confirmations = ("production stopped", "external triggers inhibited",
+                         "application is the only ExternText writer",
+                 "!EM command echo disabled")
+        with (patch("lj3.transaction.TransactionService.execute_experimental_thai_mailmode_field1",
+                    return_value=result) as execute,
+              patch("lj3.db.SqlRepository.persist_record") as persist):
+            client, output = self.run_menu([
+                "12", "FIELD 1 CONFIRMED", "USE HYPOTHESIS", "4691125P", "SEND", "0"])
+        execute.assert_called_once_with(
+            client, "4691125P", production_stopped_confirmed=True,
+            triggers_inhibited_confirmed=True, sole_writer_confirmed=True,
+            command_echo_disabled_confirmed=True,
+            operator_confirmations=confirmations)
+        persist.assert_called_once()
+        self.assertIn("Complete =MR frame hex: 5E 30 3D 4D 52 30 09 CA D5 E0 B7 D2 B9 A1 0D", output)
+        self.assertIn("Field 0 after test: '4691125P'", output)
+        self.assertIn("one FIFO entry remains staged", output)
+        self.assertIn("No =ET was sent", output)
+        self.assertIn("Mailmode content/rendering is not read back", output)
 
     def test_fixed_test_value_requires_explicit_confirmation(self):
         for confirmation in ("SEND", "send", "", "no"):
