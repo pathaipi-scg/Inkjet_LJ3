@@ -27,7 +27,7 @@ it does not bind or reconfigure a network adapter.
 | Category | Meaning for Phase 1 |
 | --- | --- |
 | Documented protocol | ASCII address 0, CR framing, `=ET`/`?ET`, Field 0 semantics, powered-on state, and font-dependent encoding; see manual references below. |
-| Our commissioning safety policy | Stop printing before every write for the first physical test; explicitly confirm SEND; use a prepared non-Unicode Field 0 test job. This is not a documented LJ3 stop-printing requirement. |
+| Our commissioning safety policy | For a physical communication write, stop printing, inhibit triggers, ensure there is no competing ExternText writer, and explicitly confirm SEND. This is not a documented LJ3 stop-printing requirement. Field 0 integration is a separate print-job test. |
 | Unknown physical behavior | Active-print text cutover, affected product, buffering, firmware readback behavior, and persistence require device/vendor verification. |
 
 The manuals do not state that `=ET` is permitted only when printing is stopped.
@@ -119,8 +119,9 @@ per-object length. Multiple objects can consume portions of the same variable.
 
 Interface p.26 also describes variable text length and placeholders restored
 on job reload or a zero string, including ExternText. Its interaction with the
-required-character rule is not fully explained. Phase 1 rejects empty writes,
-does not pad/truncate, and requires the operator to check job length/offsets.
+required-character rule is not fully explained. Phase 1 rejects empty writes
+and does not pad/truncate. Job length/offset checks are for Field 0 print
+integration and are not required for `=ET`/`?ET` communication testing.
 
 If **Check double prints** is enabled, absence of newly received external text
 after PrintGo can stop printing and generate an error (script p.22). A
@@ -165,20 +166,29 @@ timeouts without inventing a device error code or claiming rejection.
 
 Only power-on/reset/file transfer work in standby (p.4); ET needs the printer
 turned on. The manuals do **not** establish that ET requires print stop, nor
-guarantee which product receives new text during active printing. Phase 1
-therefore requires operator confirmation that production is stopped and a
-non-Unicode Field 0 test job is loaded before every write. This is application
-policy, not a documented firmware requirement or machine-state interlock.
+guarantee which product receives new text during active printing. For
+communication writes, the application requires operator confirmation that
+production is stopped, triggers are inhibited, and no competing ExternText
+writer is active. This is application policy, not a documented firmware
+requirement or machine-state interlock. A Field 0 object and verified offsets
+are needed only for a separate print-integration test.
 
-No ET TCP timeout/reconnect/retry contract is specified. Phase 1 uses a
-configurable application deadline (default 3 s), bounded receive frames, and
-no automatic reconnect or retransmission. After a failed send, delivery may
-be partial/complete/unknown. Read back and inspect the printer before deciding
-to resend. Each readback uses a fresh connection; each write closes its
-connection without waiting for an undocumented ACK. This prevents a write's
-optional echo on the same socket being mistaken for readback. There are no
-transaction IDs: fresh connections cannot prove the absence of concurrent
-writers or unsolicited identical ET frames. Use one controller during testing.
+No ET TCP timeout/reconnect/retry contract is specified. The current client
+uses a configurable 10-second default deadline, bounded receive frames, and one
+reusable TCP session for serialized commands. It does not reconnect or replay
+within a failed operation. A write remains `SENT - UNVERIFIED` until a later
+`?ET` exact comparison succeeds on the same still-open socket; if that session
+is lost, verification fails without reconnecting. Because optional `!EM` can
+echo actionable `=` commands, the CLI requires operator confirmation that
+echo is disabled before writing for same-session verification. The app does
+not inspect or change `!EM`. There are no transaction IDs or protection from
+concurrent writers; use one controller during testing.
+
+Read-only `?RS` status support decodes the manual's five fields (nozzle state,
+machine state, error, headcover, ActSpeed). Any additional response fields are
+preserved as opaque byte values and are not assigned undocumented meanings.
+TX/RX chunks retain escaped-byte and hexadecimal logs; a timing event records
+elapsed milliseconds through write submission or complete response receipt.
 
 ## Phase 1 architecture and implementation plan
 
@@ -195,12 +205,12 @@ README.md       launch and offline test instructions
 ```
 
 1. Document evidence and restrictions before implementation (this file).
-2. Implement a narrow protocol surface accepting only ET write/read commands.
+2. Implement a narrow protocol surface accepting ET write/read and RS status inquiries.
 3. Implement `connect`, `disconnect`, `send_command`, `set_external_text`,
    `get_external_text`, and `verify_external_text`; no startup I/O.
 4. Provide the commissioning menu in order: 1 TCP-only test, 2 read current
-   ExternText, 3 send fixed TEST123, 4 verify last sent text, 5 ASCII Free Text,
-   6 configure session IP/port/timeout, and 0 quit.
+  ExternText, 3 send fixed TEST123, 4 verify last sent text, 5 ASCII Free Text,
+  6 configure session IP/port/timeout, 7 read printer status, and 0 quit.
    Show timestamped TX/RX in escaped bytes and hex, connection state, and
    errors. A comparison match is not proof of physical printing.
 5. Test offline with standard-library unittest, injected sockets, and a local
@@ -210,9 +220,12 @@ README.md       launch and offline test instructions
 
 ## Unresolved questions and acceptance work
 
-- Actual printer IP/port, firmware, `?ET` support, installed job/font, and
-  whether optional echo/length/fixed-block modes were previously enabled.
-- Validate the derived ET response shape on hardware, including escaping.
+- Printer address/port and `?ET` readback have been exercised; the responding
+  state and exact `TEST123` match are recorded in the onsite guide. Printer
+  firmware, installed job/font, and the pre-existing `!EM`/`!LN`/fixed-block
+  mode configuration remain unknown.
+- Validate ET response shapes for empty text, trailing spaces, and caret escapes
+  on hardware; the successful readback covered `TEST123` only.
 - Resolve variable-length versus required-character behavior, empty text,
   trailing spaces, job reload and power-cycle persistence.
 - Resolve Unicode length, readback, supported glyphs, and supplementary planes
@@ -220,8 +233,9 @@ README.md       launch and offline test instructions
 - Confirm active-print update behavior, buffering, and exact product/Lot
   boundary with the vendor and controlled physical tests. No automatic live
   production changes are authorized by this implementation.
-- Establish a timeout and pacing policy from measured hardware behavior;
-  determine connection limits and rapid reconnect handling.
+- The 10-second client default is informed by the measured 3061.884 ms `?ET`
+  response. Determine connection limits and rapid reconnect handling before
+  production automation.
 - Validate the physical output and double-print-check configuration. ET
   readback alone cannot prove that the correct object or product was printed.
 
@@ -266,7 +280,7 @@ implementation files remain untracked pending a commit. Git 2.36.1 required a
 temporary workspace-local global-config override for its repository ownership
 check; the override was removed and no user/global Git settings were changed.
 
-## Sequential commissioning menu update (17 September 2026)
+## Sequential commissioning menu update (17 September 2026; historical behavior)
 
 The first site workflow is **1 -> 2 -> 3 -> 4**: TCP handshake only, `?ET`
 read, confirmed `=ETTEST123`, then a separate `?ET` comparison. Action **5**
@@ -275,10 +289,14 @@ against that latest submitted value. Action **6** changes only session settings,
 which initially come from local `.env`; no target IP is embedded in client or
 protocol code. Startup performs no networking.
 
-The CLI reports TCP CONNECTION OK/FAILED, SENT - UNVERIFIED for socket send
-success, and a verification Result of VERIFIED, MISMATCH, or COMMUNICATION
-ERROR. VERIFIED means exact readback only. Both send actions require the same
-explicit SEND and stopped-production/non-Unicode Field 0 job confirmation.
+At that date, the CLI reported TCP CONNECTION OK/FAILED, SENT - UNVERIFIED for
+socket send success, and VERIFIED/MISMATCH/COMMUNICATION ERROR for readback.
+Its then-current write prompt required a non-Unicode Field 0 job confirmation;
+this was application policy and was later removed for communication-only
+testing. Later implementation changes added persistent sessions, action 7
+status, and same-session verification. The current write confirmation covers
+stopped production, inhibited triggers, no competing ExternText writer, and
+disabled `!EM` echo; Field 0 is not a communication prerequisite.
 A failed write invalidates previous comparison state; cancellation or rejected
 input preserves it. Changing the target clears it.
 
@@ -296,3 +314,54 @@ workflow with exact wire bytes through injected sockets, TCP-only results,
 fixed and free-text confirmation, Thai/non-ASCII blocking, comparison results,
 history invalidation, and the existing loopback transport tests. The real Jet3
 was not contacted; local `.env` defaults were checked without network activity.
+
+## Communication implementation follow-up (26 November 2026)
+
+The operator-reported physical read-only diagnostic received `?RS` state
+values for nozzle 4 (closed), machine 4 (Ready for Action), error 0 (none),
+headcover 0 (closed), and ActSpeed 230 m/min. The response had one additional
+numeric field; its meaning is not documented and is intentionally not inferred.
+On the same TCP connection, `?ET` returned `TEST123` with an exact match in
+3061.884 ms. That subsequent readback verifies the one earlier write; no write
+was repeated, and no physical print was performed in that diagnostic.
+
+Based on that evidence, the application now defaults to a 10-second timeout,
+reuses a TCP session for sequential inquiries, offers a read-only `?RS` menu
+action, and binds `?ET` verification to the same still-open socket as the last
+write. Status decoding supports the five manual fields and preserves extra
+fields opaquely. TX/RX raw bytes/hex and elapsed timings are retained. The CLI
+requires operator confirmation that optional `!EM` echo is disabled before a
+write that will be verified on the same connection; it does not inspect or
+change that printer mode. There are no automatic write retries. The physical
+job-rendering and print-output tests remain unperformed.
+
+Offline validation on 26 November 2026 passed all 69 unittest tests, including
+protocol/status parsing, fake-socket client and CLI tests, and localhost-only
+TCP session tests. No physical-printer command was sent during this code update.
+
+## Lot Number physical communication validation (26 November 2026)
+
+Using the updated application at `172.28.169.248:3000` with the 10-second
+timeout, the operator confirmed printing stopped, print triggers inhibited, no
+competing ExternText writer, and `!EM` echo disabled. The current print job was
+not modified. The read-only status request `?RS` TX was `b'^0?RS\r'` (hex
+`5E 30 3F 52 53 0D`); RX was `b'^0=RS4\t4\t0\t0\t230\t0\r'` (hex
+`5E 30 3D 52 53 34 09 34 09 30 09 30 09 32 33 30 09 30 0D`), with a
+31.000 ms response. Documented status: nozzle closed, machine Ready for Action,
+no error, headcover closed, ActSpeed 230 m/min. The extra trailing field `0`
+is undocumented and remains opaque.
+
+The application sent one `=ET` frame, `b'^0=ET4691125P\r'` (hex
+`5E 30 3D 45 54 34 36 39 31 31 32 35 50 0D`); write-submit time was
+0.000 ms and no ordinary write acknowledgement is specified. It then sent
+`?ET` on the same TCP session: TX `b'^0?ET\r'` (hex `5E 30 3F 45 54 0D`),
+RX `b'^0=ET4691125P\r'` (hex `5E 30 3D 45 54 34 36 39 31 31 32 35 50 0D`).
+Response time was 3016.000 ms; expected and returned values matched exactly:
+**VERIFIED**. No retry, job change, setting change, restart, or print start
+occurred.
+
+Communication tests are complete for the tested ASCII values `TEST123` and
+`4691125P`. Field 0/job integration and physical printing remain **NOT TESTED**.
+MES integration, SQL lookup, and automatic Lot monitoring remain **NOT
+IMPLEMENTED**; the validated application is still an operator-driven manual
+terminal client.

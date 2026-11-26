@@ -1,4 +1,4 @@
-"""One explicit ET operation per TCP connection; no retries or background I/O."""
+"""Explicit LJ3 TCP session with serialized commands; no retries or background I/O."""
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -8,7 +8,8 @@ import time
 from typing import Callable
 
 from .config import Settings
-from .protocol import Frame, FrameParser, ProtocolError, build_command, decode_external_text
+from .protocol import (Frame, FrameParser, PrinterStatus, ProtocolError, build_command,
+                       decode_external_text, decode_printer_status)
 
 
 class CommunicationError(RuntimeError):
@@ -29,6 +30,7 @@ class Event:
     kind: str
     message: str
     data: bytes | None = None
+    elapsed_ms: float | None = None
 
 
 @dataclass(frozen=True)
@@ -54,12 +56,16 @@ class LJ3Client:
         self._on_event = on_event
         self._socket_factory = socket_factory
         self._socket: socket.socket | None = None
+        self._parser = FrameParser()
+        self._write_session: socket.socket | None = None
+        self._write_value: str | None = None
         self._lock = threading.RLock()
 
-    def _emit(self, kind: str, message: str, data: bytes | None = None) -> None:
+    def _emit(self, kind: str, message: str, data: bytes | None = None,
+              elapsed_ms: float | None = None) -> None:
         if self._on_event:
             self._on_event(Event(datetime.now(timezone.utc).isoformat(timespec="milliseconds"),
-                                 kind, message, data))
+                                 kind, message, data, elapsed_ms))
 
     @property
     def connected(self) -> bool:
@@ -67,7 +73,7 @@ class LJ3Client:
         return self._socket is not None
 
     def connect(self) -> None:
-        """Explicit TCP handshake only. Sends no LJ3 command."""
+        """Open a TCP session only when needed; this sends no LJ3 command."""
         with self._lock:
             if self.connected:
                 return
@@ -77,6 +83,7 @@ class LJ3Client:
                 self._socket = self._socket_factory(
                     (self.settings.ip, self.settings.port), timeout=self.settings.timeout
                 )
+                self._parser = FrameParser()
             except OSError as exc:
                 self._emit("ERROR", f"TCP connection failed: {exc}")
                 raise CommunicationError(f"TCP connection failed: {exc}") from exc
@@ -86,6 +93,7 @@ class LJ3Client:
         with self._lock:
             if self._socket is not None:
                 connection, self._socket = self._socket, None
+                self._parser = FrameParser()
                 try:
                     connection.close()
                 except OSError as exc:
@@ -93,109 +101,144 @@ class LJ3Client:
                 self._emit("STATUS", "Disconnected")
 
     def send_command(
-        self, command: str, text: str | None = None, *, stopped_ascii_job_confirmed: bool = False
+        self, command: str, text: str | None = None, *, write_safety_confirmed: bool = False,
+        command_echo_disabled_confirmed: bool = False,
     ) -> Frame | None:
-        """Send only an allowlisted command on an explicitly opened connection.
-
-        Every operation closes the socket. Writes do not wait for an ACK.
-        The confirmation enforces our Phase 1 commissioning policy, not a
-        documented LJ3 stop-printing requirement or a hardware interlock.
-        """
+        """Send one allowlisted command on the current session; never reconnect/retry here."""
         wire = build_command(command, text)
-        if command == "=ET" and not stopped_ascii_job_confirmed:
-            raise ValueError("Phase 1 commissioning policy: confirm printing is stopped and a non-Unicode Field 0 test job is loaded.")
+        if command == "=ET" and not write_safety_confirmed:
+            raise ValueError("Confirm printing is stopped, print triggers are inhibited, and no other ExternText writer is active.")
+        if command == "=ET" and not command_echo_disabled_confirmed:
+            raise ValueError("Confirm printer command echo (!EM) is disabled before same-session write/readback verification.")
         with self._lock:
             if self._socket is None:
                 raise CommunicationError("Not connected; call connect explicitly.")
-            deadline = time.monotonic() + self.settings.timeout
+            started = time.monotonic()
+            deadline = started + self.settings.timeout
             try:
                 self._socket.settimeout(self.settings.timeout)
                 self._emit("TX", "Attempting transmission; delivery not yet known", wire)
                 self._socket.sendall(wire)
                 if command == "=ET":
+                    elapsed = (time.monotonic() - started) * 1000
+                    self._emit("TIMING", "Write frame submitted; printer acceptance is not acknowledged.",
+                               elapsed_ms=elapsed)
                     self._emit("RESULT", "SENT - UNVERIFIED. No ordinary ACK is specified; read back separately.")
                     return None
-                return self._read_external_text_frame(deadline)
+                expected_reply = {"?ET": "=ET", "?RS": "=RS"}[command]
+                return self._read_response_frame(expected_reply, deadline, started)
             except ProtocolError as exc:
+                elapsed = (time.monotonic() - started) * 1000
+                self._emit("TIMING", f"{command} ended with a protocol error.", elapsed_ms=elapsed)
                 self._emit("ERROR", str(exc))
+                self.disconnect()
                 raise
             except TimeoutError as exc:
-                message = "Operation timed out; printer acceptance is unknown. No automatic retry."
-                self._emit("ERROR", message)
-                raise ResponseTimeout(message) from exc
-            except OSError as exc:
-                message = f"TCP failure: {exc}. Delivery may be partial or unknown; no automatic retry."
-                self._emit("ERROR", message)
-                raise CommunicationError(message) from exc
-            finally:
+                elapsed = (time.monotonic() - started) * 1000
+                message = f"No complete response to {command} before the {self.settings.timeout:g}-second deadline. No automatic retry."
+                self._emit("TIMING", f"{command} ended without a complete response.", elapsed_ms=elapsed)
+                self._emit("ERROR", message, elapsed_ms=elapsed)
                 self.disconnect()
+                raise ResponseTimeout(message) from exc
+            except CommunicationError as exc:
+                elapsed = (time.monotonic() - started) * 1000
+                self._emit("TIMING", f"{command} ended with a communication/device error.", elapsed_ms=elapsed)
+                self._emit("ERROR", str(exc), elapsed_ms=elapsed)
+                self.disconnect()
+                raise
+            except OSError as exc:
+                elapsed = (time.monotonic() - started) * 1000
+                message = f"TCP failure: {exc}. Delivery may be partial or unknown; no automatic retry."
+                self._emit("TIMING", f"{command} ended with a transport error.", elapsed_ms=elapsed)
+                self._emit("ERROR", message, elapsed_ms=elapsed)
+                self.disconnect()
+                raise CommunicationError(message) from exc
 
-    def _read_external_text_frame(self, deadline: float) -> Frame:
-        parser = FrameParser()
+    def _read_response_frame(self, expected: str, deadline: float, started: float) -> Frame:
         total = 0
         while True:
             remaining = deadline - time.monotonic()
             if remaining <= 0:
-                raise TimeoutError("No matching =ET before deadline")
+                raise TimeoutError(f"No matching {expected} before deadline")
             assert self._socket is not None
             self._socket.settimeout(remaining)
             chunk = self._socket.recv(4096)
             if not chunk:
-                message = "Peer closed before a complete =ET reply; readback unavailable."
-                self._emit("ERROR", message)
+                message = f"Peer closed before a complete {expected} reply."
                 raise CommunicationError(message)
             self._emit("RX", "Received TCP bytes", chunk)
             total += len(chunk)
             if total > 65536:
-                raise ProtocolError("Too much unsolicited data while awaiting =ET.")
-            matches = []
-            for frame in parser.feed(chunk):
+                raise ProtocolError(f"Too much data while awaiting {expected}.")
+            matches: list[Frame] = []
+            for frame in self._parser.feed(chunk):
                 if frame.command == "=FC":
-                    self._emit("ERROR", "Printer reported CRC failure (=FC).", frame.raw)
                     raise DeviceError("Printer reported CRC failure; CRC was not enabled by this client.")
                 if frame.command == "=RS":
-                    fields = frame.payload.split(b"\t")
-                    if len(fields) < 3:
-                        raise ProtocolError("Malformed machine-state frame (=RS).")
-                    try:
-                        error = int(fields[2])
-                    except ValueError as exc:
-                        raise ProtocolError("Non-numeric error in machine-state frame.") from exc
-                    if error:
-                        self._emit("ERROR", f"Printer reported numeric error {error}.", frame.raw)
-                        raise DeviceError(f"Printer error {error}; consult printer display.")
-                if frame.command == "=ET":
-                    decode_external_text(frame)  # Validate before accepting.
+                    status = decode_printer_status(frame)
+                    if frame.command != expected and status.error:
+                        raise DeviceError(f"Printer error {status.error}; consult printer display.")
+                if frame.command == expected:
+                    if expected == "=ET":
+                        decode_external_text(frame)
+                    else:
+                        decode_printer_status(frame)
                     matches.append(frame)
                 else:
-                    self._emit("NOTICE", f"Unsolicited/unmatched {frame.command}; not an ET acknowledgement.", frame.raw)
+                    self._emit("NOTICE", f"Unsolicited/unmatched {frame.command}; not accepted as {expected}.", frame.raw)
             if len(matches) > 1:
-                raise ProtocolError("Multiple =ET frames in one receive batch; ambiguous readback.")
+                raise ProtocolError(f"Multiple {expected} frames in one receive batch; ambiguous response.")
             if matches:
-                if parser.incomplete:
-                    raise ProtocolError("Additional incomplete frame after =ET; ambiguous receive batch.")
+                if self._parser.incomplete:
+                    raise ProtocolError(f"Incomplete frame followed {expected}; response is ambiguous.")
+                elapsed = (time.monotonic() - started) * 1000
+                self._emit("TIMING", f"Complete {expected} response received.", elapsed_ms=elapsed)
                 return matches[0]
 
-    def set_external_text(self, text: str, *, stopped_ascii_job_confirmed: bool = False) -> None:
-        build_command("=ET", text)  # Reject invalid input before any network activity.
-        if not stopped_ascii_job_confirmed:
-            raise ValueError("Phase 1 commissioning policy: confirm printing is stopped and a non-Unicode Field 0 test job is loaded.")
+    def set_external_text(
+        self, text: str, *, write_safety_confirmed: bool = False,
+        command_echo_disabled_confirmed: bool = False,
+    ) -> None:
+        """Submit one ET write and keep the session for an explicit later readback."""
+        build_command("=ET", text)
+        if not write_safety_confirmed:
+            raise ValueError("Confirm printing is stopped, print triggers are inhibited, and no other ExternText writer is active.")
+        if not command_echo_disabled_confirmed:
+            raise ValueError("Confirm printer command echo (!EM) is disabled before same-session write/readback verification.")
         with self._lock:
-            self.disconnect()
-            self.connect()
-            self.send_command("=ET", text, stopped_ascii_job_confirmed=True)
+            self._write_session = None
+            self._write_value = None
+            if not self.connected:
+                self.connect()
+            self.send_command("=ET", text, write_safety_confirmed=True,
+                              command_echo_disabled_confirmed=True)
+            self._write_session = self._socket
+            self._write_value = text
 
     def get_external_text(self) -> str:
         with self._lock:
-            self.disconnect()
-            self.connect()  # Fresh stream avoids treating a previous write echo as readback.
+            if not self.connected:
+                self.connect()
             frame = self.send_command("?ET")
             assert frame is not None
             return decode_external_text(frame)
 
+    def get_printer_status(self) -> PrinterStatus:
+        with self._lock:
+            if not self.connected:
+                self.connect()
+            frame = self.send_command("?RS")
+            assert frame is not None
+            return decode_printer_status(frame)
+
     def verify_external_text(self, expected: str) -> Verification:
-        build_command("=ET", expected)  # Validation only; never sends a write.
-        result = Verification(expected, self.get_external_text())
+        build_command("=ET", expected)  # Validation only; never sends another write.
+        with self._lock:
+            if self._write_value != expected:
+                raise ValueError("Verification must match the most recent ET write in this client session.")
+            if self._socket is None or self._write_session is not self._socket:
+                raise CommunicationError("Same TCP session as the write is no longer available; no readback command sent.")
+            result = Verification(expected, self.get_external_text())
         self._emit("RESULT", f"{'VERIFIED (exact ?ET readback)' if result.matched else 'MISMATCH'}: "
                    f"expected={result.expected!r}, returned={result.actual!r}. Physical printing is unverified.")
         return result

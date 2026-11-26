@@ -14,7 +14,7 @@ KEYS = {"LJ3_IP", "LJ3_PORT", "LJ3_TIMEOUT_SECONDS"}
 class Settings:
     ip: str = ""
     port: int = 3000
-    timeout: float = 3.0
+    timeout: float = 10.0
 
     def validate(self, *, require_ip: bool = True) -> None:
         if self.ip:
@@ -56,7 +56,7 @@ def load_settings() -> Settings:
         settings = Settings(
             values.get("LJ3_IP", ""),
             int(values.get("LJ3_PORT", "3000")),
-            float(values.get("LJ3_TIMEOUT_SECONDS", "3")),
+            float(values.get("LJ3_TIMEOUT_SECONDS", "10")),
         )
         settings.validate(require_ip=False)
     except ValueError as exc:

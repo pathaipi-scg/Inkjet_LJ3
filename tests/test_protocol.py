@@ -1,13 +1,14 @@
 import unittest
 
 from lj3.protocol import (FrameParser, ProtocolError, build_command,
-                          decode_external_text, parse_frame)
+                          decode_external_text, decode_printer_status, parse_frame)
 
 
 class ProtocolTests(unittest.TestCase):
     def test_documented_framing_and_ascii_address(self):
         self.assertEqual(build_command("=ET", "BLUE"), bytes.fromhex("5E 30 3D 45 54 42 4C 55 45 0D"))
         self.assertEqual(build_command("?ET"), b"^0?ET\r")
+        self.assertEqual(build_command("?RS"), b"^0?RS\r")
 
     def test_no_implicit_whitespace_or_lf(self):
         self.assertEqual(build_command("=ET", " BLUE "), b"^0=ET BLUE \r")
@@ -29,7 +30,7 @@ class ProtocolTests(unittest.TestCase):
                 build_command("=ET", text)
 
     def test_command_allowlist(self):
-        for command, payload in (("!GO", None), ("=JL", "job"), ("?RS", None),
+        for command, payload in (("!GO", None), ("=JL", "job"),
                                  ("?ET", "unexpected"), ("=ET", None), ("?ET\r^0!GO", None)):
             with self.subTest(command=command), self.assertRaises(ValueError):
                 build_command(command, payload)
@@ -56,6 +57,25 @@ class ProtocolTests(unittest.TestCase):
         self.assertEqual(parse_frame(b"^000013=RS2\t6\t0\t0\t0\r").command, "=RS")
         with self.assertRaises(ProtocolError):
             parse_frame(b"^000007=ETBLUE\r")
+
+    def test_documented_status_fields_and_opaque_extra_parameters(self):
+        status = decode_printer_status(parse_frame(b"^0=RS4\t4\t0\t0\t230\t0\r"))
+        self.assertEqual((status.nozzle_state, status.machine_state, status.error,
+                          status.headcover, status.act_speed), (4, 4, 0, 0, 230))
+        self.assertEqual(status.additional_parameters, (b"0",))
+        self.assertEqual(status.additional_parameters_raw, b"\t0")
+
+    def test_status_accepts_space_separated_manual_example(self):
+        status = decode_printer_status(parse_frame(b"^0=RS2 6 0 0 0\r"))
+        self.assertEqual((status.nozzle_state, status.machine_state, status.error,
+                          status.headcover, status.act_speed), (2, 6, 0, 0, 0))
+        self.assertEqual(status.additional_parameters, ())
+
+    def test_status_requires_five_valid_documented_fields(self):
+        for wire in (b"^0=RS4\t4\t0\t0\r", b"^0=RSx\t4\t0\t0\t230\r",
+                     b"^0=RS4\t4\tbad\t0\t230\r", b"^0=RS4\t4\t0\t0\tfast\r"):
+            with self.subTest(wire=wire), self.assertRaises(ProtocolError):
+                decode_printer_status(parse_frame(wire))
 
     def test_invalid_frames(self):
         cases = (b"^1=ETBLUE\r", b"^\x00=ETBLUE\r", b"^0=ETBLUE\n",

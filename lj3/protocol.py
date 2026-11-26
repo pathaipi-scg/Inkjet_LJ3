@@ -4,6 +4,7 @@ Phase 1 deliberately supports only printable ASCII ExternText and address '0'.
 """
 
 from dataclasses import dataclass
+from decimal import Decimal, InvalidOperation
 import re
 
 
@@ -28,9 +29,11 @@ def build_command(command: str, text: str | None = None) -> bytes:
     """Allowlist prevents the manual tool becoming an arbitrary printer console."""
     if command == "?ET" and text is None:
         return b"^0?ET\r"
+    if command == "?RS" and text is None:
+        return b"^0?RS\r"
     if command == "=ET" and text is not None:
         return b"^0=ET" + encode_external_text(text) + b"\r"
-    raise ValueError("Phase 1 permits only =ET with text or ?ET without parameters.")
+    raise ValueError("Phase 1 permits =ET with text, or ?ET/?RS without parameters.")
 
 
 @dataclass(frozen=True)
@@ -85,6 +88,43 @@ def decode_external_text(frame: Frame) -> str:
     if len(chars) > 256:
         raise ProtocolError("ExternText readback exceeds 256 characters.")
     return "".join(chars)  # Preserve spaces; never silently strip or normalize.
+
+
+@dataclass(frozen=True)
+class PrinterStatus:
+    """The five documented =RS parameters plus opaque extra wire fields."""
+
+    nozzle_state: int
+    machine_state: int
+    error: int
+    headcover: int
+    act_speed: Decimal
+    additional_parameters: tuple[bytes, ...] = ()
+    additional_parameters_raw: bytes = b""
+
+
+def decode_printer_status(frame: Frame) -> PrinterStatus:
+    """Decode the five manual-defined fields; retain extras without interpretation."""
+    if frame.command != "=RS":
+        raise ProtocolError("Expected =RS printer status.")
+    fields = list(re.finditer(rb"[^\t ]+", frame.payload))
+    if len(fields) < 5:
+        raise ProtocolError("Malformed =RS status: expected at least five parameters.")
+    documented = [match.group() for match in fields[:5]]
+    if any(re.fullmatch(rb"[0-9]+", field) is None for field in documented[:4]):
+        raise ProtocolError("Malformed =RS status: first four parameters must be decimal integers.")
+    try:
+        nozzle_state, machine_state, error, headcover = (int(field) for field in documented[:4])
+        speed_text = documented[4].decode("ascii")
+        if re.fullmatch(r"(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)", speed_text) is None:
+            raise InvalidOperation
+        act_speed = Decimal(speed_text)
+    except (UnicodeDecodeError, InvalidOperation, ValueError) as exc:
+        raise ProtocolError("Malformed =RS status: invalid documented numeric parameter.") from exc
+    additional = tuple(match.group() for match in fields[5:])
+    raw_tail = frame.payload[fields[4].end():] if len(fields) > 5 else b""
+    return PrinterStatus(nozzle_state, machine_state, error, headcover, act_speed,
+                         additional, raw_tail)
 
 
 class FrameParser:
